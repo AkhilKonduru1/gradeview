@@ -308,7 +308,13 @@ def report_card():
                 cycle_options.append({'value': cycle_value, 'text': cycle_text})
         
         for cycle_option in cycle_options:
-            cycle_url = f"{grades_url}?RCRun={cycle_option['value']}"
+            parts = cycle_option['value'].split('-')
+            if len(parts) >= 2:
+                rcrun = parts[0]
+            else:
+                rcrun = cycle_option['value']
+            
+            cycle_url = f"{grades_url}?RCRun={rcrun}"
             cycle_response = sess.get(cycle_url)
             cycle_soup = BeautifulSoup(cycle_response.text, 'html.parser')
             
@@ -324,32 +330,30 @@ def report_card():
                     cells = row.find_all('td')
                     if len(cells) >= 8:
                         course_code = cells[0].get_text(strip=True)
-                        course_desc = cells[1].get_text(strip=True)
                         
                         course_link = cells[1].find('a')
                         if course_link:
                             course_name = course_link.get_text(strip=True)
                         else:
-                            course_name = course_desc
+                            course_name = cells[1].get_text(strip=True)
                         
-                        c1_grade = cells[7].get_text(strip=True)
-                        c2_grade = cells[9].get_text(strip=True) if len(cells) > 9 else ''
+                        grade_found = None
+                        for i in range(7, min(len(cells), 22)):
+                            cell_text = cells[i].get_text(strip=True)
+                            if cell_text and re.match(r'^\d+$', cell_text):
+                                grade_found = int(cell_text)
+                                break
                         
-                        grade_to_use = c2_grade if c2_grade and re.search(r'\d', c2_grade) else c1_grade
-                        
-                        if grade_to_use and re.search(r'\d', grade_to_use):
-                            grade_match = re.search(r'(\d+)', grade_to_use)
-                            if grade_match:
-                                numeric_grade = int(grade_match.group(1))
-                                course_gpa = round(calculate_gpa_for_grade(numeric_grade, course_name), 2)
-                                
-                                cycle_courses.append({
-                                    'course': course_name,
-                                    'course_code': course_code,
-                                    'grade': numeric_grade,
-                                    'numeric_grade': numeric_grade,
-                                    'gpa': course_gpa
-                                })
+                        if grade_found:
+                            course_gpa = round(calculate_gpa_for_grade(grade_found, course_name), 2)
+                            
+                            cycle_courses.append({
+                                'course': course_name,
+                                'course_code': course_code,
+                                'grade': grade_found,
+                                'numeric_grade': grade_found,
+                                'gpa': course_gpa
+                            })
                 
                 if cycle_courses:
                     total_gpa = sum(c['gpa'] for c in cycle_courses if c['gpa'])
