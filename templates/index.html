@@ -409,6 +409,7 @@
                     <p class="subtitle">Click on a course to view assignments</p>
                 </div>
                 <div style="display: flex; gap: 15px; align-items: center;">
+                    <button class="back-btn" onclick="showReportCard()" style="background: #10B981; width: auto;">Report Card</button>
                     <div class="overall-avg" onclick="showGPACalculator()">
                         GPA: <span id="currentGPA">Calculating...</span>
                     </div>
@@ -466,6 +467,28 @@
                 <div id="cumulativeGPAValue" style="font-size: 48px; margin-top: 10px;">0.00</div>
             </div>
         </div>
+
+        <!-- Report Card View -->
+        <div id="reportCardContainer" class="gpa-calculator hidden">
+            <div class="header">
+                <div>
+                    <h1>Report Card - All Cycles</h1>
+                    <p class="subtitle">View grades from all grading periods</p>
+                </div>
+                <div style="display: flex; gap: 15px;">
+                    <button class="back-btn" onclick="backToGrades()">Back</button>
+                    <button class="logout-btn" onclick="logout()">Logout</button>
+                </div>
+            </div>
+
+            <div id="reportCardLoading" class="loading">Loading report card...</div>
+            <div id="reportCardContent"></div>
+            
+            <div id="overallReportGPA" class="cumulative-gpa-display hidden">
+                <div>Overall GPA</div>
+                <div id="overallReportGPAValue" style="font-size: 48px; margin-top: 10px;">0.00</div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -494,6 +517,11 @@
                     },
                     body: JSON.stringify({ username, password })
                 });
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Server error: Expected JSON response but got HTML. Please check if the server is running correctly.');
+                }
                 
                 const data = await response.json();
                 
@@ -524,6 +552,11 @@
                         'X-Session-ID': sessionId
                     }
                 });
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Server error: Unable to fetch grades. The server may be restarting.');
+                }
                 
                 const data = await response.json();
                 
@@ -761,6 +794,11 @@
                     })
                 });
                 
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Server error: Unable to calculate GPA.');
+                }
+                
                 const data = await response.json();
                 
                 if (!response.ok) {
@@ -783,7 +821,89 @@
             document.getElementById('loginBox').classList.remove('hidden');
             document.getElementById('gradesContainer').classList.add('hidden');
             document.getElementById('gpaCalculator').classList.add('hidden');
+            document.getElementById('reportCardContainer').classList.add('hidden');
             document.getElementById('loginForm').reset();
+        }
+
+        // Show Report Card
+        async function showReportCard() {
+            document.getElementById('gradesContainer').classList.add('hidden');
+            document.getElementById('reportCardContainer').classList.remove('hidden');
+            
+            const loadingDiv = document.getElementById('reportCardLoading');
+            const contentDiv = document.getElementById('reportCardContent');
+            const overallGPADiv = document.getElementById('overallReportGPA');
+            
+            loadingDiv.style.display = 'block';
+            contentDiv.innerHTML = '';
+            overallGPADiv.classList.add('hidden');
+            
+            try {
+                const response = await fetch('/api/report-card', {
+                    headers: {
+                        'X-Session-ID': sessionId
+                    }
+                });
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Server error: Unable to fetch report card.');
+                }
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load report card');
+                }
+                
+                loadingDiv.style.display = 'none';
+                
+                if (data.cycles && data.cycles.length > 0) {
+                    let html = '';
+                    
+                    data.cycles.forEach(cycle => {
+                        html += `
+                            <div style="margin-bottom: 30px;">
+                                <h2 style="color: #374151; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #e5e7eb;">
+                                    ${cycle.cycle_name}
+                                    <span style="float: right; color: #6B7280; font-size: 18px;">Avg GPA: ${cycle.average_gpa.toFixed(2)}</span>
+                                </h2>
+                                <div style="display: grid; gap: 10px;">
+                        `;
+                        
+                        cycle.courses.forEach(course => {
+                            html += `
+                                <div class="course-checkbox" style="cursor: default;">
+                                    <div class="course-info">
+                                        <div style="font-weight: 600; color: #333;">${course.course}</div>
+                                    </div>
+                                    <div style="font-size: 20px; font-weight: 700; color: #6B7280; margin-left: 15px;">
+                                        ${course.grade}
+                                    </div>
+                                    <div class="course-gpa-value">
+                                        GPA: ${course.gpa.toFixed(2)}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        html += `
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    contentDiv.innerHTML = html;
+                    document.getElementById('overallReportGPAValue').textContent = data.overall_gpa.toFixed(2);
+                    overallGPADiv.classList.remove('hidden');
+                } else {
+                    contentDiv.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">No report card data available.</p>';
+                }
+                
+            } catch (error) {
+                loadingDiv.style.display = 'none';
+                contentDiv.innerHTML = `<p style="text-align: center; color: #c33; padding: 40px;">Error: ${error.message}</p>`;
+            }
         }
     </script>
 </body>

@@ -166,6 +166,18 @@ def get_assignments_for_class(sess, course_index):
 
 user_sessions = {}
 
+@app.errorhandler(404)
+def not_found(e):
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'API endpoint not found'}), 404
+    return render_template('index.html')
+
+@app.errorhandler(500)
+def internal_error(e):
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Internal server error'}), 500
+    return render_template('index.html')
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -267,6 +279,82 @@ def assignments(course_id):
         assignments_data = get_assignments_for_class(sess, course_id)
         return jsonify({'assignments': assignments_data})
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/report-card', methods=['GET'])
+def report_card():
+    session_id = request.headers.get('X-Session-ID')
+    
+    if not session_id or session_id not in user_sessions:
+        return jsonify({'error': 'Invalid session'}), 401
+    
+    sess = user_sessions[session_id]
+    
+    try:
+        grades_url = f"{BASE_URL}/HomeAccess/Content/Student/ReportCards.aspx"
+        grades_response = sess.get(grades_url)
+        soup = BeautifulSoup(grades_response.text, 'html.parser')
+        
+        all_cycles = []
+        
+        report_card_tables = soup.find_all('table', class_='sg-asp-table')
+        
+        for table in report_card_tables:
+            cycle_header = table.find_previous('div', class_='sg-banner')
+            cycle_name = cycle_header.get_text(strip=True) if cycle_header else 'Unknown Cycle'
+            
+            cycle_courses = []
+            rows = table.find_all('tr', class_='sg-asp-table-data-row')
+            
+            for row in rows:
+                cells = row.find_all('td')
+                if len(cells) >= 2:
+                    course_name = cells[0].get_text(strip=True)
+                    
+                    grade_cells = [cell.get_text(strip=True) for cell in cells[1:]]
+                    
+                    for grade_text in grade_cells:
+                        if grade_text and grade_text not in ['', '-', 'N/A']:
+                            grade_match = re.search(r'(\d+\.?\d*)', grade_text)
+                            if grade_match:
+                                numeric_grade = float(grade_match.group(1))
+                                course_gpa = round(calculate_gpa_for_grade(numeric_grade, course_name), 2)
+                                
+                                cycle_courses.append({
+                                    'course': course_name,
+                                    'grade': grade_text,
+                                    'numeric_grade': numeric_grade,
+                                    'gpa': course_gpa
+                                })
+                                break
+            
+            if cycle_courses:
+                total_gpa = sum(c['gpa'] for c in cycle_courses if c['gpa'])
+                avg_gpa = round(total_gpa / len(cycle_courses), 2) if cycle_courses else 0
+                
+                all_cycles.append({
+                    'cycle_name': cycle_name,
+                    'courses': cycle_courses,
+                    'average_gpa': avg_gpa
+                })
+        
+        overall_gpa = 0
+        total_courses = 0
+        for cycle in all_cycles:
+            for course in cycle['courses']:
+                if course['gpa']:
+                    overall_gpa += course['gpa']
+                    total_courses += 1
+        
+        overall_avg_gpa = round(overall_gpa / total_courses, 2) if total_courses > 0 else 0
+        
+        return jsonify({
+            'cycles': all_cycles,
+            'overall_gpa': overall_avg_gpa
+        })
+    except Exception as e:
+        print(f"Report card error: {str(e)}")
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
