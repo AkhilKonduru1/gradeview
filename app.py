@@ -297,46 +297,69 @@ def report_card():
         
         all_cycles = []
         
-        report_card_tables = soup.find_all('table', class_='sg-asp-table')
+        dropdown = soup.find('select', id='plnMain_ddlRCRuns')
+        cycle_options = []
         
-        for table in report_card_tables:
-            cycle_header = table.find_previous('div', class_='sg-banner')
-            cycle_name = cycle_header.get_text(strip=True) if cycle_header else 'Unknown Cycle'
+        if dropdown:
+            options = dropdown.find_all('option')
+            for option in options:
+                cycle_value = option.get('value')
+                cycle_text = option.get_text(strip=True)
+                cycle_options.append({'value': cycle_value, 'text': cycle_text})
+        
+        for cycle_option in cycle_options:
+            cycle_url = f"{grades_url}?RCRun={cycle_option['value']}"
+            cycle_response = sess.get(cycle_url)
+            cycle_soup = BeautifulSoup(cycle_response.text, 'html.parser')
             
-            cycle_courses = []
-            rows = table.find_all('tr', class_='sg-asp-table-data-row')
+            cycle_name = cycle_option['text']
             
-            for row in rows:
-                cells = row.find_all('td')
-                if len(cells) >= 2:
-                    course_name = cells[0].get_text(strip=True)
-                    
-                    grade_cells = [cell.get_text(strip=True) for cell in cells[1:]]
-                    
-                    for grade_text in grade_cells:
-                        if grade_text and grade_text not in ['', '-', 'N/A']:
-                            grade_match = re.search(r'(\d+\.?\d*)', grade_text)
+            report_card_table = cycle_soup.find('table', id='plnMain_dgReportCard')
+            
+            if report_card_table:
+                cycle_courses = []
+                rows = report_card_table.find_all('tr', class_='sg-asp-table-data-row')
+                
+                for row in rows:
+                    cells = row.find_all('td')
+                    if len(cells) >= 8:
+                        course_code = cells[0].get_text(strip=True)
+                        course_desc = cells[1].get_text(strip=True)
+                        
+                        course_link = cells[1].find('a')
+                        if course_link:
+                            course_name = course_link.get_text(strip=True)
+                        else:
+                            course_name = course_desc
+                        
+                        c1_grade = cells[7].get_text(strip=True)
+                        c2_grade = cells[9].get_text(strip=True) if len(cells) > 9 else ''
+                        
+                        grade_to_use = c2_grade if c2_grade and re.search(r'\d', c2_grade) else c1_grade
+                        
+                        if grade_to_use and re.search(r'\d', grade_to_use):
+                            grade_match = re.search(r'(\d+)', grade_to_use)
                             if grade_match:
-                                numeric_grade = float(grade_match.group(1))
+                                numeric_grade = int(grade_match.group(1))
                                 course_gpa = round(calculate_gpa_for_grade(numeric_grade, course_name), 2)
                                 
                                 cycle_courses.append({
                                     'course': course_name,
-                                    'grade': grade_text,
+                                    'course_code': course_code,
+                                    'grade': numeric_grade,
                                     'numeric_grade': numeric_grade,
                                     'gpa': course_gpa
                                 })
-                                break
-            
-            if cycle_courses:
-                total_gpa = sum(c['gpa'] for c in cycle_courses if c['gpa'])
-                avg_gpa = round(total_gpa / len(cycle_courses), 2) if cycle_courses else 0
                 
-                all_cycles.append({
-                    'cycle_name': cycle_name,
-                    'courses': cycle_courses,
-                    'average_gpa': avg_gpa
-                })
+                if cycle_courses:
+                    total_gpa = sum(c['gpa'] for c in cycle_courses if c['gpa'])
+                    avg_gpa = round(total_gpa / len(cycle_courses), 2) if cycle_courses else 0
+                    
+                    all_cycles.append({
+                        'cycle_name': cycle_name,
+                        'courses': cycle_courses,
+                        'average_gpa': avg_gpa
+                    })
         
         overall_gpa = 0
         total_courses = 0

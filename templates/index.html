@@ -825,6 +825,8 @@
             document.getElementById('loginForm').reset();
         }
 
+        let reportCardData = null;
+
         // Show Report Card
         async function showReportCard() {
             document.getElementById('gradesContainer').classList.add('hidden');
@@ -857,27 +859,33 @@
                 }
                 
                 loadingDiv.style.display = 'none';
+                reportCardData = data;
                 
                 if (data.cycles && data.cycles.length > 0) {
-                    let html = '';
+                    let html = '<div style="margin-bottom: 20px;"><button onclick="addPastCyclesToGPA()" style="width: 100%; background: linear-gradient(135deg, #10B981 0%, #059669 100%);">Add Past Cycles to GPA Calculator</button></div>';
                     
-                    data.cycles.forEach(cycle => {
+                    data.cycles.forEach((cycle, cycleIndex) => {
                         html += `
-                            <div style="margin-bottom: 30px;">
-                                <h2 style="color: #374151; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #e5e7eb;">
-                                    ${cycle.cycle_name}
-                                    <span style="float: right; color: #6B7280; font-size: 18px;">Avg GPA: ${cycle.average_gpa.toFixed(2)}</span>
-                                </h2>
-                                <div style="display: grid; gap: 10px;">
+                            <div style="margin-bottom: 30px; background: white; border-radius: 15px; padding: 20px; border: 2px solid #e5e7eb;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleCycle(${cycleIndex})">
+                                    <h2 style="color: #374151; margin: 0; font-size: 20px;">
+                                        <span id="cycle-arrow-${cycleIndex}">▼</span> ${cycle.cycle_name}
+                                    </h2>
+                                    <div style="color: #6B7280; font-size: 18px; font-weight: 700;">
+                                        Avg GPA: ${cycle.average_gpa.toFixed(2)}
+                                    </div>
+                                </div>
+                                <div id="cycle-content-${cycleIndex}" style="display: block; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
                         `;
                         
                         cycle.courses.forEach(course => {
                             html += `
-                                <div class="course-checkbox" style="cursor: default;">
-                                    <div class="course-info">
+                                <div class="course-checkbox" style="cursor: default; margin-bottom: 8px;">
+                                    <div class="course-info" style="flex: 1;">
                                         <div style="font-weight: 600; color: #333;">${course.course}</div>
+                                        <div style="font-size: 12px; color: #999;">${course.course_code}</div>
                                     </div>
-                                    <div style="font-size: 20px; font-weight: 700; color: #6B7280; margin-left: 15px;">
+                                    <div style="font-size: 20px; font-weight: 700; color: #6B7280; margin-left: 15px; min-width: 60px; text-align: center;">
                                         ${course.grade}
                                     </div>
                                     <div class="course-gpa-value">
@@ -904,6 +912,51 @@
                 loadingDiv.style.display = 'none';
                 contentDiv.innerHTML = `<p style="text-align: center; color: #c33; padding: 40px;">Error: ${error.message}</p>`;
             }
+        }
+
+        function toggleCycle(cycleIndex) {
+            const content = document.getElementById(`cycle-content-${cycleIndex}`);
+            const arrow = document.getElementById(`cycle-arrow-${cycleIndex}`);
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                arrow.textContent = '▼';
+            } else {
+                content.style.display = 'none';
+                arrow.textContent = '▶';
+            }
+        }
+
+        function addPastCyclesToGPA() {
+            if (!reportCardData || !reportCardData.cycles) {
+                alert('No report card data available');
+                return;
+            }
+
+            const pastCycleGPAs = [];
+            reportCardData.cycles.forEach(cycle => {
+                if (cycle.average_gpa > 0) {
+                    pastCycleGPAs.push(cycle.average_gpa);
+                }
+            });
+
+            if (pastCycleGPAs.length === 0) {
+                alert('No past cycle GPAs to add');
+                return;
+            }
+
+            for (let i = 0; i < Math.min(4, pastCycleGPAs.length); i++) {
+                const input = document.getElementById(`prevGPA${i + 1}`);
+                if (input) {
+                    input.value = pastCycleGPAs[i].toFixed(2);
+                }
+            }
+
+            document.getElementById('reportCardContainer').classList.add('hidden');
+            document.getElementById('gpaCalculator').classList.remove('hidden');
+            
+            calculateCumulativeGPA();
+            
+            alert(`Added ${pastCycleGPAs.length} past cycle GPA(s) to calculator!`);
         }
     </script>
 </body>
