@@ -369,7 +369,7 @@
                 </div>
                 <div style="display: flex; gap: 15px; align-items: center;">
                     <div class="overall-avg" onclick="showGPACalculator()">
-                        GPA: Click to Calculate
+                        GPA: <span id="currentGPA">Calculating...</span>
                     </div>
                     <button class="logout-btn" onclick="logout()">Logout</button>
                 </div>
@@ -416,7 +416,9 @@
                 </div>
             </div>
 
-            <button onclick="calculateCumulativeGPA()" style="margin-top: 20px;">Calculate GPA</button>
+            <button onclick="calculateCumulativeGPA()" style="margin-top: 20px;">Recalculate GPA</button>
+            
+            <button onclick="saveGPASettings()" style="margin-top: 10px; background: #4caf50;">Save My Settings</button>
 
             <div id="cumulativeGPAResult" class="cumulative-gpa-display hidden">
                 <div>Cumulative GPA</div>
@@ -490,6 +492,9 @@
                 
                 allGradesData = data.grades;
                 displayGrades(data.grades);
+                
+                // Auto-calculate GPA on load
+                await autoCalculateGPA();
                 
             } catch (error) {
                 alert('Error loading grades: ' + error.message);
@@ -574,16 +579,22 @@
             document.getElementById('gradesContainer').classList.add('hidden');
             document.getElementById('gpaCalculator').classList.remove('hidden');
             
+            // Load saved settings
+            loadGPASettings();
+            
             // Populate course checkboxes
             const checkboxContainer = document.getElementById('courseCheckboxes');
             checkboxContainer.innerHTML = '';
             
+            const savedCourses = JSON.parse(localStorage.getItem('selectedCourses') || '[]');
+            
             allGradesData.forEach(course => {
                 if (course.gpa !== null) {
+                    const isChecked = savedCourses.length === 0 || savedCourses.includes(course.course_id);
                     const div = document.createElement('div');
                     div.className = 'course-checkbox';
                     div.innerHTML = `
-                        <input type="checkbox" id="course-${course.course_id}" value="${course.course_id}" checked>
+                        <input type="checkbox" id="course-${course.course_id}" value="${course.course_id}" ${isChecked ? 'checked' : ''} onchange="autoCalculateGPA()">
                         <div class="course-info">
                             <div style="font-weight: 600;">${course.name}</div>
                             <div style="color: #666; font-size: 14px;">Grade: ${course.grade}</div>
@@ -593,6 +604,83 @@
                     checkboxContainer.appendChild(div);
                 }
             });
+            
+            // Auto-calculate when opening
+            calculateCumulativeGPA();
+        }
+
+        // Auto Calculate GPA (for main page)
+        async function autoCalculateGPA() {
+            const selectedCourses = [];
+            const savedCourses = JSON.parse(localStorage.getItem('selectedCourses') || '[]');
+            
+            allGradesData.forEach(course => {
+                if (course.gpa !== null) {
+                    // If no saved preferences, include all courses
+                    if (savedCourses.length === 0 || savedCourses.includes(course.course_id)) {
+                        selectedCourses.push(course.course_id);
+                    }
+                }
+            });
+            
+            const savedGPAs = JSON.parse(localStorage.getItem('previousGPAs') || '[]');
+            
+            try {
+                const response = await fetch('/api/calculate-gpa', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Session-ID': sessionId
+                    },
+                    body: JSON.stringify({
+                        selected_courses: selectedCourses,
+                        previous_gpas: savedGPAs
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('currentGPA').textContent = data.cumulative_gpa.toFixed(2);
+                }
+                
+            } catch (error) {
+                document.getElementById('currentGPA').textContent = 'Error';
+            }
+        }
+
+        // Save GPA Settings to localStorage
+        function saveGPASettings() {
+            const selectedCourses = [];
+            allGradesData.forEach(course => {
+                const checkbox = document.getElementById(`course-${course.course_id}`);
+                if (checkbox && checkbox.checked) {
+                    selectedCourses.push(course.course_id);
+                }
+            });
+            
+            const previousGPAs = [
+                document.getElementById('prevGPA1').value,
+                document.getElementById('prevGPA2').value,
+                document.getElementById('prevGPA3').value,
+                document.getElementById('prevGPA4').value
+            ].filter(gpa => gpa !== '');
+            
+            localStorage.setItem('selectedCourses', JSON.stringify(selectedCourses));
+            localStorage.setItem('previousGPAs', JSON.stringify(previousGPAs));
+            
+            alert('Settings saved! Your preferences will be remembered.');
+            autoCalculateGPA();
+        }
+
+        // Load GPA Settings from localStorage
+        function loadGPASettings() {
+            const savedGPAs = JSON.parse(localStorage.getItem('previousGPAs') || '[]');
+            
+            if (savedGPAs[0]) document.getElementById('prevGPA1').value = savedGPAs[0];
+            if (savedGPAs[1]) document.getElementById('prevGPA2').value = savedGPAs[1];
+            if (savedGPAs[2]) document.getElementById('prevGPA3').value = savedGPAs[2];
+            if (savedGPAs[3]) document.getElementById('prevGPA4').value = savedGPAs[3];
         }
 
         // Back to Grades
@@ -640,6 +728,7 @@
                 
                 document.getElementById('cumulativeGPAValue').textContent = data.cumulative_gpa.toFixed(2);
                 document.getElementById('cumulativeGPAResult').classList.remove('hidden');
+                document.getElementById('currentGPA').textContent = data.cumulative_gpa.toFixed(2);
                 
             } catch (error) {
                 alert('Error calculating GPA: ' + error.message);
