@@ -47,6 +47,52 @@ def create_session_and_login(username, password):
     
     return sess, None
 
+def calculate_gpa_for_grade(grade_percent, course_name):
+    """Calculate GPA for a single grade based on course level"""
+    # Determine course level from course name
+    if 'AP' in course_name.upper():
+        base_gpa = 6.0
+    elif 'ADV' in course_name.upper() or 'ADVANCED' in course_name.upper():
+        base_gpa = 5.5
+    else:
+        base_gpa = 5.0
+    
+    # Calculate GPA: each point below 100 is -0.1
+    points_below_100 = 100 - grade_percent
+    gpa = base_gpa - (points_below_100 * 0.1)
+    
+    # Cap at 0
+    return max(0, gpa)
+
+def get_assignments_for_class_internal(cls):
+    """Get assignments from a class div element (internal helper)"""
+    assignments = []
+    
+    # Get assignments from this class
+    assignment_table = cls.find('table', class_='sg-asp-table')
+    
+    if assignment_table:
+        rows = assignment_table.find_all('tr', class_='sg-asp-table-data-row')
+        
+        for row in rows:
+            cells = row.find_all('td')
+            if len(cells) >= 4:
+                date_due = cells[0].get_text(strip=True)
+                date_assigned = cells[1].get_text(strip=True)
+                assignment_name = cells[2].get_text(strip=True)
+                category = cells[3].get_text(strip=True)
+                score = cells[4].get_text(strip=True) if len(cells) > 4 else 'N/A'
+                
+                assignments.append({
+                    'date_due': date_due,
+                    'date_assigned': date_assigned,
+                    'name': assignment_name,
+                    'category': category,
+                    'score': score
+                })
+    
+    return assignments
+
 def get_grades_data(sess):
     """Get all grades from HAC"""
     grades_url = f"{BASE_URL}/HomeAccess/Content/Student/Assignments.aspx"
@@ -69,11 +115,26 @@ def get_grades_data(sess):
                 grade_text = grade_text.replace('Cycle Average', '').strip()
                 
                 if grade_text:
+                    # Extract numeric grade
+                    grade_match = re.search(r'(\d+\.?\d*)', grade_text)
+                    numeric_grade = None
+                    course_gpa = None
+                    
+                    if grade_match:
+                        numeric_grade = float(grade_match.group(1))
+                        course_gpa = round(calculate_gpa_for_grade(numeric_grade, course_name), 2)
+                    
+                    # Get assignments for this course
+                    assignments = get_assignments_for_class_internal(cls)
+                    
                     # Use index as course_id since there's no unique identifier
                     grades.append({
                         'name': course_name,
                         'grade': grade_text,
-                        'course_id': str(idx)
+                        'numeric_grade': numeric_grade,
+                        'gpa': course_gpa,
+                        'course_id': str(idx),
+                        'assignments': assignments
                     })
     
     return grades
@@ -167,14 +228,12 @@ def grades():
     try:
         grades_data = get_grades_data(sess)
         
-        # Calculate overall average
+        # Calculate overall average (percentage)
         total = 0
         count = 0
         for grade in grades_data:
-            grade_text = grade['grade'].replace('%', '').strip()
-            match = re.search(r'(\d+\.?\d*)', grade_text)
-            if match:
-                total += float(match.group(1))
+            if grade['numeric_grade']:
+                total += grade['numeric_grade']
                 count += 1
         
         overall_avg = round(total / count, 2) if count > 0 else 0
@@ -182,6 +241,42 @@ def grades():
         return jsonify({
             'grades': grades_data,
             'overall_average': overall_avg
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/calculate-gpa', methods=['POST'])
+def calculate_gpa():
+    """Calculate cumulative GPA including selected courses and previous years"""
+    session_id = request.headers.get('X-Session-ID')
+    
+    if not session_id or session_id not in user_sessions:
+        return jsonify({'error': 'Invalid session'}), 401
+    
+    try:
+        data = request.json
+        selected_course_ids = data.get('selected_courses', [])
+        previous_gpas = data.get('previous_gpas', [])  # List of previous year GPAs
+        
+        sess = user_sessions[session_id]
+        grades_data = get_grades_data(sess)
+        
+        # Get GPAs for selected current courses
+        current_course_gpas = []
+        for grade in grades_data:
+            if grade['course_id'] in selected_course_ids and grade['gpa'] is not None:
+                current_course_gpas.append(grade['gpa'])
+        
+        # Combine all GPAs
+        all_gpas = current_course_gpas + [float(gpa) for gpa in previous_gpas if gpa]
+        
+        # Calculate cumulative GPA
+        cumulative_gpa = round(sum(all_gpas) / len(all_gpas), 2) if all_gpas else 0
+        
+        return jsonify({
+            'cumulative_gpa': cumulative_gpa,
+            'current_courses_count': len(current_course_gpas),
+            'previous_years_count': len([gpa for gpa in previous_gpas if gpa])
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500

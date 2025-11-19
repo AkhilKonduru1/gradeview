@@ -135,6 +135,85 @@
             border-radius: 15px;
             font-size: 24px;
             font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .overall-avg:hover {
+            transform: scale(1.05);
+        }
+
+        .gpa-calculator {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .course-checkbox {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .course-checkbox input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-right: 15px;
+            cursor: pointer;
+        }
+
+        .course-info {
+            flex: 1;
+        }
+
+        .course-gpa-value {
+            font-weight: 700;
+            color: #667eea;
+            font-size: 18px;
+            margin-left: 15px;
+        }
+
+        .previous-gpa-inputs {
+            margin: 30px 0;
+        }
+
+        .gpa-input-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .gpa-input-row input {
+            width: 100px;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+        }
+
+        .cumulative-gpa-display {
+            background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            margin-top: 30px;
+            font-size: 32px;
+            font-weight: 700;
+        }
+
+        .back-btn {
+            background: #999;
+            padding: 10px 20px;
+            width: auto;
+            font-size: 14px;
+            margin-right: 10px;
         }
 
         .logout-btn {
@@ -289,8 +368,8 @@
                     <p class="subtitle">Click on a course to view assignments</p>
                 </div>
                 <div style="display: flex; gap: 15px; align-items: center;">
-                    <div class="overall-avg">
-                        Average: <span id="overallAvg">0</span>%
+                    <div class="overall-avg" onclick="showGPACalculator()">
+                        GPA: Click to Calculate
                     </div>
                     <button class="logout-btn" onclick="logout()">Logout</button>
                 </div>
@@ -298,10 +377,57 @@
             
             <div id="gradesList"></div>
         </div>
+
+        <!-- GPA Calculator -->
+        <div id="gpaCalculator" class="gpa-calculator hidden">
+            <div class="header">
+                <div>
+                    <h1>GPA Calculator</h1>
+                    <p class="subtitle">Select courses and enter previous year GPAs</p>
+                </div>
+                <div style="display: flex; gap: 15px;">
+                    <button class="back-btn" onclick="backToGrades()">Back</button>
+                    <button class="logout-btn" onclick="logout()">Logout</button>
+                </div>
+            </div>
+
+            <h3 style="margin-top: 20px; color: #333;">Current Year Courses</h3>
+            <p style="color: #666; margin-bottom: 20px;">Select courses to include in GPA calculation</p>
+            <div id="courseCheckboxes"></div>
+
+            <div class="previous-gpa-inputs">
+                <h3 style="color: #333; margin-bottom: 15px;">Previous Year GPAs (Optional)</h3>
+                <p style="color: #666; margin-bottom: 15px;">Enter up to 4 previous year GPAs</p>
+                <div class="gpa-input-row">
+                    <label>Year 1:</label>
+                    <input type="number" step="0.01" min="0" max="6" id="prevGPA1" placeholder="0.00">
+                </div>
+                <div class="gpa-input-row">
+                    <label>Year 2:</label>
+                    <input type="number" step="0.01" min="0" max="6" id="prevGPA2" placeholder="0.00">
+                </div>
+                <div class="gpa-input-row">
+                    <label>Year 3:</label>
+                    <input type="number" step="0.01" min="0" max="6" id="prevGPA3" placeholder="0.00">
+                </div>
+                <div class="gpa-input-row">
+                    <label>Year 4:</label>
+                    <input type="number" step="0.01" min="0" max="6" id="prevGPA4" placeholder="0.00">
+                </div>
+            </div>
+
+            <button onclick="calculateCumulativeGPA()" style="margin-top: 20px;">Calculate GPA</button>
+
+            <div id="cumulativeGPAResult" class="cumulative-gpa-display hidden">
+                <div>Cumulative GPA</div>
+                <div id="cumulativeGPAValue" style="font-size: 48px; margin-top: 10px;">0.00</div>
+            </div>
+        </div>
     </div>
 
     <script>
         let sessionId = null;
+        let allGradesData = [];
 
         // Login Form Handler
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -362,7 +488,8 @@
                     throw new Error(data.error || 'Failed to load grades');
                 }
                 
-                displayGrades(data.grades, data.overall_average);
+                allGradesData = data.grades;
+                displayGrades(data.grades);
                 
             } catch (error) {
                 alert('Error loading grades: ' + error.message);
@@ -370,24 +497,23 @@
         }
 
         // Display Grades
-        function displayGrades(grades, overallAvg) {
-            document.getElementById('overallAvg').textContent = overallAvg;
-            
+        function displayGrades(grades) {
             const gradesList = document.getElementById('gradesList');
             gradesList.innerHTML = '';
             
             grades.forEach((course, index) => {
                 const card = document.createElement('div');
                 card.className = 'course-card';
-                card.onclick = () => toggleAssignments(course.course_id, index);
+                card.onclick = () => toggleAssignments(index);
+                
+                const gpaDisplay = course.gpa ? `<span style="color: #4caf50; margin-left: 15px; font-size: 16px;">GPA: ${course.gpa}</span>` : '';
                 
                 card.innerHTML = `
                     <div class="course-header">
-                        <div class="course-name">${course.name}</div>
+                        <div class="course-name">${course.name}${gpaDisplay}</div>
                         <div class="course-grade">${course.grade}</div>
                     </div>
                     <div id="assignments-${index}" class="assignments">
-                        <div class="loading-assignments">Loading assignments...</div>
                     </div>
                 `;
                 
@@ -396,9 +522,7 @@
         }
 
         // Toggle Assignments
-        let loadedAssignments = {};
-        
-        async function toggleAssignments(courseId, index) {
+        function toggleAssignments(index) {
             const assignmentsDiv = document.getElementById(`assignments-${index}`);
             
             if (assignmentsDiv.classList.contains('show')) {
@@ -408,30 +532,9 @@
             
             assignmentsDiv.classList.add('show');
             
-            // If already loaded, don't reload
-            if (loadedAssignments[courseId]) {
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/api/assignments/${courseId}`, {
-                    headers: {
-                        'X-Session-ID': sessionId
-                    }
-                });
-                
-                const data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(data.error || 'Failed to load assignments');
-                }
-                
-                displayAssignments(data.assignments, index);
-                loadedAssignments[courseId] = true;
-                
-            } catch (error) {
-                assignmentsDiv.innerHTML = `<div class="no-assignments">Error loading assignments: ${error.message}</div>`;
-            }
+            // Assignments are already loaded, display them
+            const course = allGradesData[index];
+            displayAssignments(course.assignments, index);
         }
 
         // Display Assignments
@@ -466,12 +569,90 @@
             assignmentsDiv.innerHTML = html;
         }
 
+        // Show GPA Calculator
+        function showGPACalculator() {
+            document.getElementById('gradesContainer').classList.add('hidden');
+            document.getElementById('gpaCalculator').classList.remove('hidden');
+            
+            // Populate course checkboxes
+            const checkboxContainer = document.getElementById('courseCheckboxes');
+            checkboxContainer.innerHTML = '';
+            
+            allGradesData.forEach(course => {
+                if (course.gpa !== null) {
+                    const div = document.createElement('div');
+                    div.className = 'course-checkbox';
+                    div.innerHTML = `
+                        <input type="checkbox" id="course-${course.course_id}" value="${course.course_id}" checked>
+                        <div class="course-info">
+                            <div style="font-weight: 600;">${course.name}</div>
+                            <div style="color: #666; font-size: 14px;">Grade: ${course.grade}</div>
+                        </div>
+                        <div class="course-gpa-value">GPA: ${course.gpa}</div>
+                    `;
+                    checkboxContainer.appendChild(div);
+                }
+            });
+        }
+
+        // Back to Grades
+        function backToGrades() {
+            document.getElementById('gpaCalculator').classList.add('hidden');
+            document.getElementById('gradesContainer').classList.remove('hidden');
+            document.getElementById('cumulativeGPAResult').classList.add('hidden');
+        }
+
+        // Calculate Cumulative GPA
+        async function calculateCumulativeGPA() {
+            const selectedCourses = [];
+            allGradesData.forEach(course => {
+                const checkbox = document.getElementById(`course-${course.course_id}`);
+                if (checkbox && checkbox.checked) {
+                    selectedCourses.push(course.course_id);
+                }
+            });
+            
+            const previousGPAs = [
+                document.getElementById('prevGPA1').value,
+                document.getElementById('prevGPA2').value,
+                document.getElementById('prevGPA3').value,
+                document.getElementById('prevGPA4').value
+            ].filter(gpa => gpa !== '');
+            
+            try {
+                const response = await fetch('/api/calculate-gpa', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Session-ID': sessionId
+                    },
+                    body: JSON.stringify({
+                        selected_courses: selectedCourses,
+                        previous_gpas: previousGPAs
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to calculate GPA');
+                }
+                
+                document.getElementById('cumulativeGPAValue').textContent = data.cumulative_gpa.toFixed(2);
+                document.getElementById('cumulativeGPAResult').classList.remove('hidden');
+                
+            } catch (error) {
+                alert('Error calculating GPA: ' + error.message);
+            }
+        }
+
         // Logout
         function logout() {
             sessionId = null;
-            loadedAssignments = {};
+            allGradesData = [];
             document.getElementById('loginBox').classList.remove('hidden');
             document.getElementById('gradesContainer').classList.add('hidden');
+            document.getElementById('gpaCalculator').classList.add('hidden');
             document.getElementById('loginForm').reset();
         }
     </script>
