@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HAC Grade Checker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+        }
+
+        .login-box, .grades-container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .login-box {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 32px;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .loading {
+            text-align: center;
+            color: #667eea;
+            margin-top: 20px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* Grades Display */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .overall-avg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 15px;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .logout-btn {
+            background: #f44336;
+            padding: 10px 20px;
+            width: auto;
+            font-size: 14px;
+        }
+
+        .course-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .course-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border-color: #667eea;
+        }
+
+        .course-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .course-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            flex: 1;
+        }
+
+        .course-grade {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+            margin-left: 20px;
+        }
+
+        .assignments {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+            display: none;
+        }
+
+        .assignments.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .assignment-item {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr 1fr;
+            gap: 15px;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .assignment-header {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr 1fr;
+            gap: 15px;
+            padding: 12px;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .assignment-score {
+            font-weight: 600;
+            color: #4caf50;
+        }
+
+        .no-assignments {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+            font-style: italic;
+        }
+
+        .loading-assignments {
+            text-align: center;
+            color: #667eea;
+            padding: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .assignment-item, .assignment-header {
+                grid-template-columns: 1fr;
+                gap: 5px;
+            }
+            
+            .course-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Login Form -->
+        <div id="loginBox" class="login-box">
+            <h1>📚 HAC Grade Checker</h1>
+            <p class="subtitle">Leander ISD Home Access Center</p>
+            
+            <div id="errorMessage" class="error-message"></div>
+            
+            <form id="loginForm">
+                <div class="input-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" placeholder="student.name@k12.leanderisd.org" required>
+                </div>
+                
+                <div class="input-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="Enter your password" required>
+                </div>
+                
+                <button type="submit" id="loginBtn">Login</button>
+                <div id="loginLoading" class="loading hidden">Logging in...</div>
+            </form>
+        </div>
+
+        <!-- Grades Display -->
+        <div id="gradesContainer" class="grades-container hidden">
+            <div class="header">
+                <div>
+                    <h1>Your Grades</h1>
+                    <p class="subtitle">Click on a course to view assignments</p>
+                </div>
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <div class="overall-avg">
+                        Average: <span id="overallAvg">0</span>%
+                    </div>
+                    <button class="logout-btn" onclick="logout()">Logout</button>
+                </div>
+            </div>
+            
+            <div id="gradesList"></div>
+        </div>
+    </div>
+
+    <script>
+        let sessionId = null;
+
+        // Login Form Handler
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('errorMessage');
+            const loginBtn = document.getElementById('loginBtn');
+            const loading = document.getElementById('loginLoading');
+            
+            errorDiv.style.display = 'none';
+            loginBtn.disabled = true;
+            loading.classList.remove('hidden');
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Login failed');
+                }
+                
+                sessionId = data.session_id;
+                await loadGrades();
+                
+                document.getElementById('loginBox').classList.add('hidden');
+                document.getElementById('gradesContainer').classList.remove('hidden');
+                
+            } catch (error) {
+                errorDiv.textContent = error.message;
+                errorDiv.style.display = 'block';
+            } finally {
+                loginBtn.disabled = false;
+                loading.classList.add('hidden');
+            }
+        });
+
+        // Load Grades
+        async function loadGrades() {
+            try {
+                const response = await fetch('/api/grades', {
+                    headers: {
+                        'X-Session-ID': sessionId
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load grades');
+                }
+                
+                displayGrades(data.grades, data.overall_average);
+                
+            } catch (error) {
+                alert('Error loading grades: ' + error.message);
+            }
+        }
+
+        // Display Grades
+        function displayGrades(grades, overallAvg) {
+            document.getElementById('overallAvg').textContent = overallAvg;
+            
+            const gradesList = document.getElementById('gradesList');
+            gradesList.innerHTML = '';
+            
+            grades.forEach((course, index) => {
+                const card = document.createElement('div');
+                card.className = 'course-card';
+                card.onclick = () => toggleAssignments(course.course_id, index);
+                
+                card.innerHTML = `
+                    <div class="course-header">
+                        <div class="course-name">${course.name}</div>
+                        <div class="course-grade">${course.grade}</div>
+                    </div>
+                    <div id="assignments-${index}" class="assignments">
+                        <div class="loading-assignments">Loading assignments...</div>
+                    </div>
+                `;
+                
+                gradesList.appendChild(card);
+            });
+        }
+
+        // Toggle Assignments
+        let loadedAssignments = {};
+        
+        async function toggleAssignments(courseId, index) {
+            const assignmentsDiv = document.getElementById(`assignments-${index}`);
+            
+            if (assignmentsDiv.classList.contains('show')) {
+                assignmentsDiv.classList.remove('show');
+                return;
+            }
+            
+            assignmentsDiv.classList.add('show');
+            
+            // If already loaded, don't reload
+            if (loadedAssignments[courseId]) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/assignments/${courseId}`, {
+                    headers: {
+                        'X-Session-ID': sessionId
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load assignments');
+                }
+                
+                displayAssignments(data.assignments, index);
+                loadedAssignments[courseId] = true;
+                
+            } catch (error) {
+                assignmentsDiv.innerHTML = `<div class="no-assignments">Error loading assignments: ${error.message}</div>`;
+            }
+        }
+
+        // Display Assignments
+        function displayAssignments(assignments, index) {
+            const assignmentsDiv = document.getElementById(`assignments-${index}`);
+            
+            if (assignments.length === 0) {
+                assignmentsDiv.innerHTML = '<div class="no-assignments">No assignments found</div>';
+                return;
+            }
+            
+            let html = `
+                <div class="assignment-header">
+                    <div>Due Date</div>
+                    <div>Assignment</div>
+                    <div>Category</div>
+                    <div>Score</div>
+                </div>
+            `;
+            
+            assignments.forEach(assignment => {
+                html += `
+                    <div class="assignment-item">
+                        <div>${assignment.date_due}</div>
+                        <div>${assignment.name}</div>
+                        <div>${assignment.category}</div>
+                        <div class="assignment-score">${assignment.score}</div>
+                    </div>
+                `;
+            });
+            
+            assignmentsDiv.innerHTML = html;
+        }
+
+        // Logout
+        function logout() {
+            sessionId = null;
+            loadedAssignments = {};
+            document.getElementById('loginBox').classList.remove('hidden');
+            document.getElementById('gradesContainer').classList.add('hidden');
+            document.getElementById('loginForm').reset();
+        }
+    </script>
+</body>
+</html>
