@@ -13,22 +13,18 @@ CORS(app)
 BASE_URL = "https://lis-hac.eschoolplus.powerschool.com"
 
 def create_session_and_login(username, password):
-    """Create a session and login to HAC"""
     sess = requests.Session()
     login_url = f"{BASE_URL}/HomeAccess/Account/LogOn"
     
-    # Get login page
     response = sess.get(login_url)
     soup = BeautifulSoup(response.text, 'html.parser')
     
-    # Prepare login data
     login_data = {
         'Database': '10',
         'LogOnDetails.UserName': username,
         'LogOnDetails.Password': password
     }
     
-    # Extract hidden fields
     login_form = soup.find('form')
     if login_form:
         hidden_inputs = login_form.find_all('input', type='hidden')
@@ -38,18 +34,17 @@ def create_session_and_login(username, password):
             if name:
                 login_data[name] = value
     
-    # Login
     login_response = sess.post(login_url, data=login_data, allow_redirects=True)
     
-    # Check if login successful
     if 'LogOn' in login_response.url:
         return None, "Invalid username or password"
     
     return sess, None
 
 def calculate_gpa_for_grade(grade_percent, course_name):
-    """Calculate GPA for a single grade based on course level"""
-    # Determine course level from course name
+    import math
+    rounded_grade = math.floor(grade_percent + 0.5) if (grade_percent % 1) == 0.5 else round(grade_percent)
+    
     if 'AP' in course_name.upper():
         base_gpa = 6.0
     elif 'ADV' in course_name.upper() or 'ADVANCED' in course_name.upper():
@@ -57,18 +52,14 @@ def calculate_gpa_for_grade(grade_percent, course_name):
     else:
         base_gpa = 5.0
     
-    # Calculate GPA: each point below 100 is -0.1
-    points_below_100 = 100 - grade_percent
+    points_below_100 = 100 - rounded_grade
     gpa = base_gpa - (points_below_100 * 0.1)
     
-    # Cap at 0
-    return max(0, gpa)
+    return max(0, min(gpa, base_gpa))
 
 def get_assignments_for_class_internal(cls):
-    """Get assignments from a class div element (internal helper)"""
     assignments = []
     
-    # Get assignments from this class
     assignment_table = cls.find('table', class_='sg-asp-table')
     
     if assignment_table:
@@ -94,7 +85,6 @@ def get_assignments_for_class_internal(cls):
     return assignments
 
 def get_grades_data(sess):
-    """Get all grades from HAC"""
     grades_url = f"{BASE_URL}/HomeAccess/Content/Student/Assignments.aspx"
     grades_response = sess.get(grades_url)
     soup = BeautifulSoup(grades_response.text, 'html.parser')
@@ -103,19 +93,16 @@ def get_grades_data(sess):
     classes = soup.find_all('div', class_='AssignmentClass')
     
     for idx, cls in enumerate(classes):
-        # Get course name
         course_name_elem = cls.find('a', class_='sg-header-heading')
         if course_name_elem:
             course_name = course_name_elem.get_text(strip=True)
             
-            # Look for average/grade
             avg_elem = cls.find('span', class_='sg-header-heading sg-right')
             if avg_elem:
                 grade_text = avg_elem.get_text(strip=True)
                 grade_text = grade_text.replace('Cycle Average', '').strip()
                 
                 if grade_text:
-                    # Extract numeric grade
                     grade_match = re.search(r'(\d+\.?\d*)', grade_text)
                     numeric_grade = None
                     course_gpa = None
@@ -124,10 +111,8 @@ def get_grades_data(sess):
                         numeric_grade = float(grade_match.group(1))
                         course_gpa = round(calculate_gpa_for_grade(numeric_grade, course_name), 2)
                     
-                    # Get assignments for this course
                     assignments = get_assignments_for_class_internal(cls)
                     
-                    # Use index as course_id since there's no unique identifier
                     grades.append({
                         'name': course_name,
                         'grade': grade_text,
@@ -140,24 +125,19 @@ def get_grades_data(sess):
     return grades
 
 def get_assignments_for_class(sess, course_index):
-    """Get all assignments for a specific class"""
-    # The assignments are already on the same page, we need to find the right section
     grades_url = f"{BASE_URL}/HomeAccess/Content/Student/Assignments.aspx"
     grades_response = sess.get(grades_url)
     soup = BeautifulSoup(grades_response.text, 'html.parser')
     
     assignments = []
     
-    # Find all assignment class divs
     classes = soup.find_all('div', class_='AssignmentClass')
     
-    # Convert course_index to int and get the specific class
     try:
         idx = int(course_index)
         if idx < len(classes):
             cls = classes[idx]
             
-            # Get assignments from this class
             assignment_table = cls.find('table', class_='sg-asp-table')
             
             if assignment_table:
@@ -184,7 +164,6 @@ def get_assignments_for_class(sess, course_index):
     
     return assignments
 
-# Store sessions temporarily (in production, use proper session management)
 user_sessions = {}
 
 @app.route('/')
@@ -206,7 +185,6 @@ def login():
         if error:
             return jsonify({'error': error}), 401
         
-        # Store session
         session_id = secrets.token_hex(16)
         user_sessions[session_id] = sess
         
@@ -228,7 +206,6 @@ def grades():
     try:
         grades_data = get_grades_data(sess)
         
-        # Calculate overall average (percentage)
         total = 0
         count = 0
         for grade in grades_data:
@@ -247,7 +224,6 @@ def grades():
 
 @app.route('/api/calculate-gpa', methods=['POST'])
 def calculate_gpa():
-    """Calculate cumulative GPA including selected courses and previous years"""
     session_id = request.headers.get('X-Session-ID')
     
     if not session_id or session_id not in user_sessions:
@@ -256,21 +232,18 @@ def calculate_gpa():
     try:
         data = request.json
         selected_course_ids = data.get('selected_courses', [])
-        previous_gpas = data.get('previous_gpas', [])  # List of previous year GPAs
+        previous_gpas = data.get('previous_gpas', [])
         
         sess = user_sessions[session_id]
         grades_data = get_grades_data(sess)
         
-        # Get GPAs for selected current courses
         current_course_gpas = []
         for grade in grades_data:
             if grade['course_id'] in selected_course_ids and grade['gpa'] is not None:
                 current_course_gpas.append(grade['gpa'])
         
-        # Combine all GPAs
         all_gpas = current_course_gpas + [float(gpa) for gpa in previous_gpas if gpa]
         
-        # Calculate cumulative GPA
         cumulative_gpa = round(sum(all_gpas) / len(all_gpas), 2) if all_gpas else 0
         
         return jsonify({

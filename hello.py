@@ -31,11 +31,6 @@ def get_grades():
         # First, get the login page to extract any required tokens
         print("Loading login page...")
         response = session.get(login_url)
-        
-        if response.status_code != 200:
-            print(f"❌ Failed to load login page (Status: {response.status_code})")
-            return
-        
         # Parse the login page to get form details
         soup = BeautifulSoup(response.text, 'html.parser')
         
@@ -62,14 +57,6 @@ def get_grades():
         print("Authenticating...")
         login_response = session.post(login_url, data=login_data, allow_redirects=True)
         
-        # Check if login was successful
-        if 'LogOn' in login_response.url or login_response.status_code == 401:
-            print("\n❌ Authentication Failed")
-            print("\nYour credentials were not accepted. Please check:")
-            print("1. Username and password are correct")
-            print("2. Account is not locked")
-            print("3. Try logging in at the website directly first")
-            return
         
         print("✓ Login successful!")
         print("\nFetching grades...")
@@ -78,10 +65,6 @@ def get_grades():
         grades_url = f"{base_url}/HomeAccess/Content/Student/Assignments.aspx"
         grades_response = session.get(grades_url)
         
-        if grades_response.status_code != 200:
-            # Try alternative grades URL
-            grades_url = f"{base_url}/HomeAccess/Content/Student/Classes.aspx"
-            grades_response = session.get(grades_url)
         
         # Parse the grades page
         soup = BeautifulSoup(grades_response.text, 'html.parser')
