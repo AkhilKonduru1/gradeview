@@ -98,29 +98,34 @@ def get_grades_data(sess):
             course_name = course_name_elem.get_text(strip=True)
             
             avg_elem = cls.find('span', class_='sg-header-heading sg-right')
+            grade_text = ''
+            numeric_grade = None
+            course_gpa = None
+            
             if avg_elem:
                 grade_text = avg_elem.get_text(strip=True)
                 grade_text = grade_text.replace('Cycle Average', '').strip()
                 
                 if grade_text:
                     grade_match = re.search(r'(\d+\.?\d*)', grade_text)
-                    numeric_grade = None
-                    course_gpa = None
                     
                     if grade_match:
                         numeric_grade = float(grade_match.group(1))
                         course_gpa = round(calculate_gpa_for_grade(numeric_grade, course_name), 2)
-                    
-                    assignments = get_assignments_for_class_internal(cls)
-                    
-                    grades.append({
-                        'name': course_name,
-                        'grade': grade_text,
-                        'numeric_grade': numeric_grade,
-                        'gpa': course_gpa,
-                        'course_id': str(idx),
-                        'assignments': assignments
-                    })
+            
+            if not grade_text:
+                grade_text = 'No Grade Yet'
+            
+            assignments = get_assignments_for_class_internal(cls)
+            
+            grades.append({
+                'name': course_name,
+                'grade': grade_text,
+                'numeric_grade': numeric_grade,
+                'gpa': course_gpa,
+                'course_id': str(idx),
+                'assignments': assignments
+            })
     
     return grades
 
