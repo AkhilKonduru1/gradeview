@@ -307,12 +307,16 @@ def report_card():
                 cycle_text = option.get_text(strip=True)
                 cycle_options.append({'value': cycle_value, 'text': cycle_text})
         
+        print(f"Found {len(cycle_options)} cycles")
+        
         for cycle_option in cycle_options:
             parts = cycle_option['value'].split('-')
             if len(parts) >= 2:
                 rcrun = parts[0]
             else:
                 rcrun = cycle_option['value']
+            
+            print(f"Processing cycle: {cycle_option['text']} (RCRun={rcrun})")
             
             cycle_url = f"{grades_url}?RCRun={rcrun}"
             cycle_response = sess.get(cycle_url)
@@ -325,6 +329,8 @@ def report_card():
             if report_card_table:
                 cycle_courses = []
                 rows = report_card_table.find_all('tr', class_='sg-asp-table-data-row')
+                
+                print(f"  Found {len(rows)} courses in table")
                 
                 for row in rows:
                     cells = row.find_all('td')
@@ -354,6 +360,9 @@ def report_card():
                                 'numeric_grade': grade_found,
                                 'gpa': course_gpa
                             })
+                            print(f"    {course_name}: {grade_found} (GPA: {course_gpa})")
+                        else:
+                            print(f"    {course_name}: No grade found")
                 
                 if cycle_courses:
                     total_gpa = sum(c['gpa'] for c in cycle_courses if c['gpa'])
@@ -364,6 +373,11 @@ def report_card():
                         'courses': cycle_courses,
                         'average_gpa': avg_gpa
                     })
+                    print(f"  Added cycle with {len(cycle_courses)} courses, avg GPA: {avg_gpa}")
+                else:
+                    print(f"  No courses found for cycle")
+            else:
+                print(f"  No table found for cycle")
         
         overall_gpa = 0
         total_courses = 0
@@ -374,6 +388,8 @@ def report_card():
                     total_courses += 1
         
         overall_avg_gpa = round(overall_gpa / total_courses, 2) if total_courses > 0 else 0
+        
+        print(f"Total cycles: {len(all_cycles)}, Overall GPA: {overall_avg_gpa}")
         
         return jsonify({
             'cycles': all_cycles,
