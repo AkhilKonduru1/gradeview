@@ -249,6 +249,7 @@ def calculate_gpa():
     try:
         data = request.json
         selected_course_ids = data.get('selected_courses', [])
+        excluded_course_names = data.get('excluded_courses', [])  # Course names to exclude from all cycles
         
         sess = user_sessions[session_id]
         
@@ -261,6 +262,9 @@ def calculate_gpa():
         
         # Automatically fetch report card data for past cycles
         past_cycle_gpas = []
+        past_cycles_detail = []
+        all_unique_courses = set()
+        
         try:
             grades_url = f"{BASE_URL}/HomeAccess/Content/Student/ReportCards.aspx"
             grades_response = sess.get(grades_url)
@@ -274,6 +278,7 @@ def calculate_gpa():
                 for option in options:
                     parts = option['value'].split('-')
                     rcrun = parts[0] if len(parts) >= 2 else option['value']
+                    cycle_name = option.get_text(strip=True)
                     
                     cycle_url = f"{grades_url}?RCRun={rcrun}"
                     cycle_response = sess.get(cycle_url)
@@ -282,7 +287,7 @@ def calculate_gpa():
                     report_card_table = cycle_soup.find('table', id='plnMain_dgReportCard')
                     
                     if report_card_table:
-                        cycle_gpas = []
+                        cycle_courses = []
                         rows = report_card_table.find_all('tr', class_='sg-asp-table-data-row')
                         
                         for row in rows:
@@ -294,6 +299,13 @@ def calculate_gpa():
                                 else:
                                     course_name = cells[1].get_text(strip=True)
                                 
+                                # Track all unique course names
+                                all_unique_courses.add(course_name)
+                                
+                                # Skip if course is in exclusion list
+                                if course_name in excluded_course_names:
+                                    continue
+                                
                                 grade_found = None
                                 for i in range(7, min(len(cells), 22)):
                                     cell_text = cells[i].get_text(strip=True)
@@ -303,12 +315,21 @@ def calculate_gpa():
                                 
                                 if grade_found:
                                     course_gpa = calculate_gpa_for_grade(grade_found, course_name)
-                                    cycle_gpas.append(course_gpa)
+                                    cycle_courses.append({
+                                        'course_name': course_name,
+                                        'grade': grade_found,
+                                        'gpa': round(course_gpa, 2)
+                                    })
                         
                         # Calculate average GPA for this cycle
-                        if cycle_gpas:
-                            cycle_avg = sum(cycle_gpas) / len(cycle_gpas)
+                        if cycle_courses:
+                            cycle_avg = sum(c['gpa'] for c in cycle_courses) / len(cycle_courses)
                             past_cycle_gpas.append(cycle_avg)
+                            past_cycles_detail.append({
+                                'cycle_name': cycle_name,
+                                'courses': cycle_courses,
+                                'average_gpa': round(cycle_avg, 2)
+                            })
         except Exception as e:
             print(f"Error fetching past cycles: {str(e)}")
             # Continue with calculation even if past cycles fail
@@ -321,7 +342,9 @@ def calculate_gpa():
             'cumulative_gpa': cumulative_gpa,
             'current_courses_count': len(current_course_gpas),
             'past_cycles_count': len(past_cycle_gpas),
-            'past_cycle_gpas': [round(gpa, 2) for gpa in past_cycle_gpas]
+            'past_cycle_gpas': [round(gpa, 2) for gpa in past_cycle_gpas],
+            'past_cycles_detail': past_cycles_detail,
+            'all_unique_courses': sorted(list(all_unique_courses))
         })
     except Exception as e:
         print(f"GPA calculation error: {str(e)}")

@@ -5,6 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HAC Grade Checker</title>
     <style>
+        :root {
+            --primary-color-1: #667eea;
+            --primary-color-2: #764ba2;
+            --accent-color-1: #f093fb;
+            --accent-color-2: #f5576c;
+            --success-color-1: #10B981;
+            --success-color-2: #059669;
+            --heading-color: #5a67d8;
+            --text-muted: #718096;
+            --border-color: #e5e7eb;
+            --hover-border: #667eea;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -13,12 +26,13 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--primary-color-1) 0%, var(--primary-color-2) 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
             padding: 20px;
+            transition: background 0.3s ease;
         }
 
         .container {
@@ -40,7 +54,7 @@
         }
 
         h1 {
-            color: #5a67d8;
+            color: var(--heading-color);
             margin-bottom: 10px;
             font-size: 32px;
             text-align: center;
@@ -48,7 +62,7 @@
         }
 
         .subtitle {
-            color: #718096;
+            color: var(--text-muted);
             text-align: center;
             margin-bottom: 30px;
             font-size: 14px;
@@ -77,7 +91,7 @@
 
         input:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: var(--primary-color-1);
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
             background: #fafafa;
         }
@@ -89,7 +103,7 @@
         button {
             width: 100%;
             padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--primary-color-1) 0%, var(--primary-color-2) 100%);
             color: white;
             border: none;
             border-radius: 10px;
@@ -123,7 +137,7 @@
 
         .loading {
             text-align: center;
-            color: #667eea;
+            color: var(--primary-color-1);
             margin-top: 20px;
         }
 
@@ -142,7 +156,7 @@
         }
 
         .overall-avg {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            background: linear-gradient(135deg, var(--accent-color-1) 0%, var(--accent-color-2) 100%);
             color: white;
             padding: 15px 25px;
             border-radius: 15px;
@@ -155,7 +169,7 @@
         }
 
         .overall-avg:hover {
-            background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
+            background: linear-gradient(135deg, var(--accent-color-2) 0%, var(--accent-color-1) 100%);
             border-color: rgba(255,255,255,0.3);
             box-shadow: 0 6px 20px rgba(240, 147, 251, 0.4);
             transform: translateY(-2px);
@@ -184,7 +198,7 @@
         
         .course-checkbox:hover {
             background: #ffffff;
-            border-color: #667eea;
+            border-color: var(--hover-border);
             box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
         }
 
@@ -197,7 +211,7 @@
         }
         
         .course-checkbox input[type="checkbox"]:checked {
-            accent-color: #667eea;
+            accent-color: var(--primary-color-1);
         }
 
         .course-info {
@@ -206,7 +220,7 @@
 
         .course-gpa-value {
             font-weight: 700;
-            color: #667eea;
+            color: var(--primary-color-1);
             font-size: 18px;
             margin-left: 15px;
         }
@@ -230,7 +244,7 @@
         }
 
         .cumulative-gpa-display {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--primary-color-1) 0%, var(--primary-color-2) 100%);
             color: white;
             padding: 30px;
             border-radius: 15px;
@@ -277,7 +291,7 @@
         .course-card:hover {
             background: #ffffff;
             box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
-            border-color: #667eea;
+            border-color: var(--hover-border);
             transform: translateY(-2px);
         }
         
@@ -302,7 +316,7 @@
         .course-grade {
             font-size: 24px;
             font-weight: 700;
-            color: #667eea;
+            color: var(--primary-color-1);
             margin-left: 20px;
         }
 
@@ -354,7 +368,7 @@
             gap: 15px;
             padding: 12px;
             font-weight: 600;
-            color: #667eea;
+            color: var(--primary-color-1);
             margin-bottom: 10px;
         }
 
@@ -372,7 +386,7 @@
 
         .loading-assignments {
             text-align: center;
-            color: #667eea;
+            color: var(--primary-color-1);
             padding: 20px;
         }
 
@@ -387,6 +401,94 @@
                 align-items: flex-start;
                 gap: 10px;
             }
+        }
+
+        /* Theme Selector Styles */
+        .theme-selector {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 15px;
+            padding: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 1000;
+            max-width: 300px;
+        }
+
+        .theme-selector h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: #333;
+            text-align: left;
+        }
+
+        .theme-option {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 8px;
+            border: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .theme-option:hover {
+            background: #f8f9fa;
+            border-color: #e0e0e0;
+        }
+
+        .theme-option.active {
+            border-color: var(--primary-color-1);
+            background: #f0f4ff;
+        }
+
+        .theme-colors {
+            display: flex;
+            gap: 5px;
+            margin-right: 12px;
+        }
+
+        .theme-color-box {
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .theme-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .theme-toggle-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: white;
+            border: none;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            z-index: 999;
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 25px rgba(0,0,0,0.2);
+        }
+
+        .theme-selector.hidden {
+            display: none;
         }
     </style>
 </head>
@@ -451,13 +553,21 @@
             <p style="color: #666; margin-bottom: 20px;">Select courses to include in GPA calculation</p>
             <div id="courseCheckboxes"></div>
 
-            <div class="previous-gpa-inputs" style="margin-top: 30px; background: #f0f4ff; padding: 20px; border-radius: 10px; border: 2px solid #667eea;">
-                <h3 style="color: #667eea; margin-bottom: 15px;">📊 Past Cycles (Auto-Loaded)</h3>
+            <div class="previous-gpa-inputs" style="margin-top: 30px; background: #f0f4ff; padding: 20px; border-radius: 10px; border: 2px solid var(--primary-color-1);">
+                <h3 style="color: var(--heading-color); margin-bottom: 15px;">📊 Past Cycles (Auto-Loaded)</h3>
                 <p style="color: #4a5568; margin-bottom: 15px; font-size: 14px;">
                     Past cycle GPAs are automatically included from your transcript data.
                 </p>
                 <div id="pastCyclesDisplay" style="color: #718096; font-size: 14px;">
                     Loading past cycles...
+                </div>
+                
+                <div id="courseExclusionSection" style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #e5e7eb; display: none;">
+                    <h4 style="color: #333; margin-bottom: 10px;">🚫 Exclude Courses from All Cycles</h4>
+                    <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                        Select courses to exclude from GPA calculations across ALL grading periods
+                    </p>
+                    <div id="excludedCoursesList"></div>
                 </div>
             </div>
 
@@ -495,9 +605,164 @@
         </div>
     </div>
 
+    <!-- Theme Selector -->
+    <button class="theme-toggle-btn" onclick="toggleThemeSelector()">🎨</button>
+    <div id="themeSelector" class="theme-selector hidden">
+        <h3>Choose Theme</h3>
+        <div class="theme-option" data-theme="purple" onclick="applyTheme('purple')">
+            <div class="theme-colors">
+                <div class="theme-color-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
+            </div>
+            <span class="theme-name">Purple Dream</span>
+        </div>
+        <div class="theme-option" data-theme="ocean" onclick="applyTheme('ocean')">
+            <div class="theme-colors">
+                <div class="theme-color-box" style="background: linear-gradient(135deg, #1e3a8a 0%, #0891b2 100%);"></div>
+            </div>
+            <span class="theme-name">Ocean Blue</span>
+        </div>
+        <div class="theme-option" data-theme="sunset" onclick="applyTheme('sunset')">
+            <div class="theme-colors">
+                <div class="theme-color-box" style="background: linear-gradient(135deg, #f97316 0%, #dc2626 100%);"></div>
+            </div>
+            <span class="theme-name">Sunset Orange</span>
+        </div>
+        <div class="theme-option" data-theme="forest" onclick="applyTheme('forest')">
+            <div class="theme-colors">
+                <div class="theme-color-box" style="background: linear-gradient(135deg, #059669 0%, #047857 100%);"></div>
+            </div>
+            <span class="theme-name">Forest Green</span>
+        </div>
+        <div class="theme-option" data-theme="pink" onclick="applyTheme('pink')">
+            <div class="theme-colors">
+                <div class="theme-color-box" style="background: linear-gradient(135deg, #ec4899 0%, #be185d 100%);"></div>
+            </div>
+            <span class="theme-name">Pink Bliss</span>
+        </div>
+        <div class="theme-option" data-theme="dark" onclick="applyTheme('dark')">
+            <div class="theme-colors">
+                <div class="theme-color-box" style="background: linear-gradient(135deg, #4b5563 0%, #1f2937 100%);"></div>
+            </div>
+            <span class="theme-name">Dark Mode</span>
+        </div>
+    </div>
+
     <script>
         let sessionId = null;
         let allGradesData = [];
+
+        // Theme Management
+        const themes = {
+            purple: {
+                primary1: '#667eea',
+                primary2: '#764ba2',
+                accent1: '#f093fb',
+                accent2: '#f5576c',
+                success1: '#10B981',
+                success2: '#059669',
+                heading: '#5a67d8',
+                textMuted: '#718096',
+                border: '#e5e7eb',
+                hoverBorder: '#667eea'
+            },
+            ocean: {
+                primary1: '#1e3a8a',
+                primary2: '#0891b2',
+                accent1: '#06b6d4',
+                accent2: '#0284c7',
+                success1: '#10B981',
+                success2: '#059669',
+                heading: '#1e40af',
+                textMuted: '#64748b',
+                border: '#e0e7ff',
+                hoverBorder: '#1e3a8a'
+            },
+            sunset: {
+                primary1: '#f97316',
+                primary2: '#dc2626',
+                accent1: '#fb923c',
+                accent2: '#ef4444',
+                success1: '#10B981',
+                success2: '#059669',
+                heading: '#ea580c',
+                textMuted: '#78716c',
+                border: '#fed7aa',
+                hoverBorder: '#f97316'
+            },
+            forest: {
+                primary1: '#059669',
+                primary2: '#047857',
+                accent1: '#10b981',
+                accent2: '#14b8a6',
+                success1: '#84cc16',
+                success2: '#65a30d',
+                heading: '#047857',
+                textMuted: '#6b7280',
+                border: '#d1fae5',
+                hoverBorder: '#059669'
+            },
+            pink: {
+                primary1: '#ec4899',
+                primary2: '#be185d',
+                accent1: '#f472b6',
+                accent2: '#db2777',
+                success1: '#10B981',
+                success2: '#059669',
+                heading: '#db2777',
+                textMuted: '#9ca3af',
+                border: '#fce7f3',
+                hoverBorder: '#ec4899'
+            },
+            dark: {
+                primary1: '#4b5563',
+                primary2: '#1f2937',
+                accent1: '#6b7280',
+                accent2: '#374151',
+                success1: '#10B981',
+                success2: '#059669',
+                heading: '#9ca3af',
+                textMuted: '#d1d5db',
+                border: '#374151',
+                hoverBorder: '#6b7280'
+            }
+        };
+
+        function applyTheme(themeName) {
+            const theme = themes[themeName];
+            if (!theme) return;
+
+            const root = document.documentElement;
+            root.style.setProperty('--primary-color-1', theme.primary1);
+            root.style.setProperty('--primary-color-2', theme.primary2);
+            root.style.setProperty('--accent-color-1', theme.accent1);
+            root.style.setProperty('--accent-color-2', theme.accent2);
+            root.style.setProperty('--success-color-1', theme.success1);
+            root.style.setProperty('--success-color-2', theme.success2);
+            root.style.setProperty('--heading-color', theme.heading);
+            root.style.setProperty('--text-muted', theme.textMuted);
+            root.style.setProperty('--border-color', theme.border);
+            root.style.setProperty('--hover-border', theme.hoverBorder);
+
+            // Save preference
+            localStorage.setItem('selectedTheme', themeName);
+
+            // Update active state
+            document.querySelectorAll('.theme-option').forEach(opt => {
+                opt.classList.remove('active');
+            });
+            document.querySelector(`[data-theme="${themeName}"]`).classList.add('active');
+        }
+
+        function toggleThemeSelector() {
+            const selector = document.getElementById('themeSelector');
+            selector.classList.toggle('hidden');
+        }
+
+        // Load saved theme on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('selectedTheme') || 'purple';
+            applyTheme(savedTheme);
+        });
 
         // Login Form Handler
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -589,7 +854,7 @@
                 card.className = 'course-card';
                 card.onclick = () => toggleAssignments(index);
                 
-                const gpaDisplay = course.gpa ? `<span style="color: #667eea; margin-left: 15px; font-size: 16px; font-weight: 600;">GPA: ${course.gpa}</span>` : '';
+                const gpaDisplay = course.gpa ? `<span style="color: var(--primary-color-1); margin-left: 15px; font-size: 16px; font-weight: 600;">GPA: ${course.gpa}</span>` : '';
                 
                 card.innerHTML = `
                     <div class="course-header">
@@ -701,6 +966,8 @@
                 }
             });
             
+            const excludedCourses = JSON.parse(localStorage.getItem('excludedCourses') || '[]');
+            
             try {
                 const response = await fetch('/api/calculate-gpa', {
                     method: 'POST',
@@ -709,7 +976,8 @@
                         'X-Session-ID': sessionId
                     },
                     body: JSON.stringify({
-                        selected_courses: selectedCourses
+                        selected_courses: selectedCourses,
+                        excluded_courses: excludedCourses
                     })
                 });
                 
@@ -762,6 +1030,9 @@
                 }
             });
             
+            // Get excluded courses
+            const excludedCourses = JSON.parse(localStorage.getItem('excludedCourses') || '[]');
+            
             try {
                 const response = await fetch('/api/calculate-gpa', {
                     method: 'POST',
@@ -770,7 +1041,8 @@
                         'X-Session-ID': sessionId
                     },
                     body: JSON.stringify({
-                        selected_courses: selectedCourses
+                        selected_courses: selectedCourses,
+                        excluded_courses: excludedCourses
                     })
                 });
                 
@@ -785,15 +1057,61 @@
                     throw new Error(data.error || 'Failed to calculate GPA');
                 }
                 
-                // Display past cycles info
+                // Display detailed past cycles info
                 const pastCyclesDiv = document.getElementById('pastCyclesDisplay');
-                if (data.past_cycles_count > 0) {
-                    let cycleInfo = `✓ ${data.past_cycles_count} past cycle(s) automatically included<br>`;
-                    cycleInfo += `<div style="margin-top: 10px; padding: 10px; background: white; border-radius: 5px;">`;
-                    cycleInfo += `<strong>Past Cycle GPAs:</strong> `;
-                    cycleInfo += data.past_cycle_gpas.map(gpa => gpa.toFixed(2)).join(', ');
+                if (data.past_cycles_count > 0 && data.past_cycles_detail) {
+                    let cycleInfo = `<div style="margin-bottom: 15px; padding: 12px; background: white; border-radius: 8px; border-left: 4px solid var(--primary-color-1);">`;
+                    cycleInfo += `<strong style="color: var(--primary-color-1);">✓ ${data.past_cycles_count} Past Cycle(s) Included</strong><br>`;
+                    cycleInfo += `<div style="margin-top: 8px; font-size: 13px; color: #666;">Average GPAs: ${data.past_cycle_gpas.map(gpa => gpa.toFixed(2)).join(', ')}</div>`;
                     cycleInfo += `</div>`;
+                    
+                    // Show detailed breakdown
+                    cycleInfo += `<details style="margin-top: 15px; background: white; padding: 15px; border-radius: 8px;">`;
+                    cycleInfo += `<summary style="cursor: pointer; font-weight: 600; color: #333;">📖 View Detailed Breakdown</summary>`;
+                    cycleInfo += `<div style="margin-top: 15px;">`;
+                    
+                    data.past_cycles_detail.forEach((cycle, idx) => {
+                        cycleInfo += `<div style="margin-bottom: 20px; padding: 12px; background: #f9fafb; border-radius: 6px;">`;
+                        cycleInfo += `<div style="font-weight: 600; color: var(--primary-color-1); margin-bottom: 8px;">${cycle.cycle_name}</div>`;
+                        cycleInfo += `<div style="font-size: 13px; color: #666; margin-bottom: 10px;">Cycle GPA: ${cycle.average_gpa.toFixed(2)}</div>`;
+                        
+                        cycle.courses.forEach(course => {
+                            cycleInfo += `<div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #e5e7eb; font-size: 12px;">`;
+                            cycleInfo += `<span style="color: #333;">${course.course_name}</span>`;
+                            cycleInfo += `<span><span style="color: #666;">Grade: ${course.grade}</span> | <span style="color: var(--primary-color-1); font-weight: 600;">GPA: ${course.gpa.toFixed(2)}</span></span>`;
+                            cycleInfo += `</div>`;
+                        });
+                        
+                        cycleInfo += `</div>`;
+                    });
+                    
+                    cycleInfo += `</div></details>`;
                     pastCyclesDiv.innerHTML = cycleInfo;
+                    
+                    // Show course exclusion section and populate with all courses
+                    if (data.all_unique_courses && data.all_unique_courses.length > 0) {
+                        const exclusionSection = document.getElementById('courseExclusionSection');
+                        const excludedList = document.getElementById('excludedCoursesList');
+                        exclusionSection.style.display = 'block';
+                        
+                        let exclusionHTML = '';
+                        data.all_unique_courses.forEach(courseName => {
+                            const isExcluded = excludedCourses.includes(courseName);
+                            exclusionHTML += `
+                                <div style="display: flex; align-items: center; padding: 8px; background: white; border-radius: 6px; margin-bottom: 6px; border: 1px solid #e5e7eb;">
+                                    <input type="checkbox" id="exclude-${courseName.replace(/\s+/g, '-')}" 
+                                           value="${courseName}" 
+                                           ${isExcluded ? 'checked' : ''}
+                                           onchange="toggleCourseExclusion('${courseName.replace(/'/g, "\\'")}', this.checked)"
+                                           style="margin-right: 10px; cursor: pointer;">
+                                    <label for="exclude-${courseName.replace(/\s+/g, '-')}" style="cursor: pointer; flex: 1; font-size: 13px; color: #333;">
+                                        ${courseName}
+                                    </label>
+                                </div>
+                            `;
+                        });
+                        excludedList.innerHTML = exclusionHTML;
+                    }
                 } else {
                     pastCyclesDiv.innerHTML = '⚠️ No past cycles found in transcript';
                 }
@@ -805,6 +1123,24 @@
             } catch (error) {
                 alert('Error calculating GPA: ' + error.message);
             }
+        }
+        
+        // Toggle course exclusion
+        function toggleCourseExclusion(courseName, isExcluded) {
+            let excludedCourses = JSON.parse(localStorage.getItem('excludedCourses') || '[]');
+            
+            if (isExcluded) {
+                if (!excludedCourses.includes(courseName)) {
+                    excludedCourses.push(courseName);
+                }
+            } else {
+                excludedCourses = excludedCourses.filter(c => c !== courseName);
+            }
+            
+            localStorage.setItem('excludedCourses', JSON.stringify(excludedCourses));
+            
+            // Recalculate GPA
+            calculateCumulativeGPA();
         }
 
         // Logout
@@ -855,18 +1191,18 @@
                 reportCardData = data;
                 
                 if (data.cycles && data.cycles.length > 0) {
-                    let html = '<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e0e7ff 0%, #fce7f3 100%); border-radius: 10px; border: 2px solid #667eea;">';
-                    html += '<p style="color: #5a67d8; font-weight: 600; margin: 0;">✓ Past cycles are automatically included in GPA calculations</p>';
+                    let html = '<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e0e7ff 0%, #fce7f3 100%); border-radius: 10px; border: 2px solid var(--primary-color-1);">';
+                    html += '<p style="color: var(--heading-color); font-weight: 600; margin: 0;">✓ Past cycles are automatically included in GPA calculations</p>';
                     html += '</div>';
                     
                     data.cycles.forEach((cycle, cycleIndex) => {
                         html += `
-                            <div style="margin-bottom: 30px; background: white; border-radius: 15px; padding: 20px; border: 2px solid #e5e7eb; transition: all 0.3s ease;" onmouseover="this.style.borderColor='#667eea'" onmouseout="this.style.borderColor='#e5e7eb'">
+                            <div style="margin-bottom: 30px; background: white; border-radius: 15px; padding: 20px; border: 2px solid #e5e7eb; transition: all 0.3s ease;" onmouseover="this.style.borderColor='var(--hover-border)'" onmouseout="this.style.borderColor='#e5e7eb'">
                                 <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleCycle(${cycleIndex})">
-                                    <h2 style="color: #5a67d8; margin: 0; font-size: 20px;">
+                                    <h2 style="color: var(--heading-color); margin: 0; font-size: 20px;">
                                         <span id="cycle-arrow-${cycleIndex}">▼</span> ${cycle.cycle_name}
                                     </h2>
-                                    <div style="color: #667eea; font-size: 18px; font-weight: 700;">
+                                    <div style="color: var(--primary-color-1); font-size: 18px; font-weight: 700;">
                                         Avg GPA: ${cycle.average_gpa.toFixed(2)}
                                     </div>
                                 </div>
@@ -880,7 +1216,7 @@
                                         <div style="font-weight: 600; color: #333;">${course.course}</div>
                                         <div style="font-size: 12px; color: #999;">${course.course_code}</div>
                                     </div>
-                                    <div style="font-size: 20px; font-weight: 700; color: #667eea; margin-left: 15px; min-width: 60px; text-align: center;">
+                                    <div style="font-size: 20px; font-weight: 700; color: var(--primary-color-1); margin-left: 15px; min-width: 60px; text-align: center;">
                                         ${course.grade}
                                     </div>
                                     <div class="course-gpa-value">
