@@ -525,6 +525,7 @@
                     <p class="subtitle">Click on a course to view assignments</p>
                 </div>
                 <div style="display: flex; gap: 15px; align-items: center;">
+                    <button class="back-btn" onclick="exportGrades()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); width: auto;">📥 Export</button>
                     <button class="back-btn" onclick="showReportCard()" style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); width: auto;">📋 Report Card</button>
                     <div class="overall-avg" onclick="showGPACalculator()">
                         GPA: <span id="currentGPA">Calculating...</span>
@@ -554,6 +555,39 @@
             </div>
             
             <div id="gradesList"></div>
+            
+            <!-- Helpful Tips Section -->
+            <div style="margin-top: 30px; padding: 20px; background: linear-gradient(135deg, #fef3f2 0%, #fef9c3 100%); border-radius: 15px; border: 2px solid #fbbf24;">
+                <h3 style="color: #92400e; margin-bottom: 10px; font-size: 16px;">💡 Quick Tips</h3>
+                <ul style="margin: 0; padding-left: 20px; color: #78350f; font-size: 14px; line-height: 1.8;">
+                    <li><strong>Export Your Grades:</strong> Click the Export button to download your grades as a CSV file</li>
+                    <li><strong>What-If Calculator:</strong> Use the GPA Calculator to experiment with different grades</li>
+                    <li><strong>Customization:</strong> Click the 🎨 button to change the color theme</li>
+                    <li><strong>Past Cycles:</strong> Your past grading periods are automatically included in GPA calculations</li>
+                </ul>
+            </div>
+            
+            <!-- Grade Scale Reference -->
+            <details style="margin-top: 15px; padding: 15px; background: white; border-radius: 10px; border: 2px solid var(--border-color);">
+                <summary style="cursor: pointer; font-weight: 600; color: var(--heading-color); font-size: 15px;">📊 GPA Scale Reference</summary>
+                <div style="margin-top: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                    <div style="padding: 10px; background: #f0f4ff; border-radius: 8px; text-align: center;">
+                        <div style="font-weight: 600; color: #5a67d8;">Regular</div>
+                        <div style="font-size: 13px; color: #666; margin-top: 5px;">90-100 = 4.0-5.0</div>
+                    </div>
+                    <div style="padding: 10px; background: #f0fdf4; border-radius: 8px; text-align: center;">
+                        <div style="font-weight: 600; color: #047857;">Advanced</div>
+                        <div style="font-size: 13px; color: #666; margin-top: 5px;">90-100 = 4.5-5.5</div>
+                    </div>
+                    <div style="padding: 10px; background: #fef3f2; border-radius: 8px; text-align: center;">
+                        <div style="font-weight: 600; color: #dc2626;">AP</div>
+                        <div style="font-size: 13px; color: #666; margin-top: 5px;">90-100 = 5.0-6.0</div>
+                    </div>
+                </div>
+                <div style="margin-top: 10px; padding: 10px; background: #fef9c3; border-radius: 6px; font-size: 12px; color: #78350f;">
+                    <strong>Note:</strong> Each point below 100 reduces GPA by 0.1 points from the maximum
+                </div>
+            </details>
         </div>
 
         <!-- GPA Calculator -->
@@ -592,6 +626,7 @@
             </div>
 
             <button onclick="calculateCumulativeGPA()" style="margin-top: 20px;">Calculate GPA</button>
+            <button onclick="saveGPASettings()" style="margin-top: 10px; background: linear-gradient(135deg, #10B981 0%, #059669 100%);">💾 Save Preferences</button>
 
             <!-- What-If GPA Calculator -->
             <div id="whatIfSection" style="margin-top: 30px; padding: 20px; background: linear-gradient(135deg, #fef3f2 0%, #f0f4ff 100%); border-radius: 10px; border: 2px solid var(--accent-color-1); display: none;">
@@ -1016,12 +1051,17 @@
             `;
             
             assignments.forEach(assignment => {
+                // Check if assignment is missing or has no score
+                const isMissing = assignment.score === 'N/A' || assignment.score.includes('Missing') || assignment.score === '';
+                const scoreClass = isMissing ? 'style="color: #dc2626; font-weight: 600;"' : 'class="assignment-score"';
+                const scoreDisplay = isMissing ? (assignment.score || '❌ Missing') : assignment.score;
+                
                 html += `
                     <div class="assignment-item">
                         <div>${assignment.date_due}</div>
                         <div>${assignment.name}</div>
                         <div>${assignment.category}</div>
-                        <div class="assignment-score">${assignment.score}</div>
+                        <div ${scoreClass}>${scoreDisplay}</div>
                     </div>
                 `;
             });
@@ -1386,6 +1426,53 @@
             
             // Recalculate GPA
             calculateCumulativeGPA();
+        }
+
+        // Export Grades Function
+        function exportGrades() {
+            if (!allGradesData || allGradesData.length === 0) {
+                alert('No grades data to export');
+                return;
+            }
+            
+            // Create CSV content
+            let csvContent = "Course Name,Grade,Numeric Grade,GPA\n";
+            
+            allGradesData.forEach(course => {
+                const numericGrade = course.numeric_grade || 'N/A';
+                const gpa = course.gpa || 'N/A';
+                csvContent += `"${course.name}","${course.grade}",${numericGrade},${gpa}\n`;
+            });
+            
+            // Add summary statistics
+            csvContent += "\nSummary Statistics\n";
+            csvContent += "Average Grade," + document.getElementById('avgGrade').textContent + "\n";
+            csvContent += "Highest Grade," + document.getElementById('highestGrade').textContent + "\n";
+            csvContent += "Total Classes," + document.getElementById('totalClasses').textContent + "\n";
+            csvContent += "Average GPA," + document.getElementById('quickGPA').textContent + "\n";
+            
+            // Create download link
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            const date = new Date().toISOString().split('T')[0];
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', `gradeview-export-${date}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // Show success message
+            const exportBtn = event.target;
+            const originalText = exportBtn.textContent;
+            exportBtn.textContent = '✓ Exported!';
+            exportBtn.style.background = 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
+            setTimeout(() => {
+                exportBtn.textContent = originalText;
+                exportBtn.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+            }, 2000);
         }
 
         // Logout
