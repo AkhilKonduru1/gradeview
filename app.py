@@ -8,7 +8,7 @@ import traceback
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
-CORS(app)
+CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"], supports_credentials=True)
 
 BASE_URL = "https://lis-hac.eschoolplus.powerschool.com"
 
@@ -249,26 +249,83 @@ def calculate_gpa():
     try:
         data = request.json
         selected_course_ids = data.get('selected_courses', [])
-        previous_gpas = data.get('previous_gpas', [])
         
         sess = user_sessions[session_id]
-        grades_data = get_grades_data(sess)
         
+        # Get current courses
+        grades_data = get_grades_data(sess)
         current_course_gpas = []
         for grade in grades_data:
             if grade['course_id'] in selected_course_ids and grade['gpa'] is not None:
                 current_course_gpas.append(grade['gpa'])
         
-        all_gpas = current_course_gpas + [float(gpa) for gpa in previous_gpas if gpa]
+        # Automatically fetch report card data for past cycles
+        past_cycle_gpas = []
+        try:
+            grades_url = f"{BASE_URL}/HomeAccess/Content/Student/ReportCards.aspx"
+            grades_response = sess.get(grades_url)
+            soup = BeautifulSoup(grades_response.text, 'html.parser')
+            
+            dropdown = soup.find('select', id='plnMain_ddlRCRuns')
+            
+            if dropdown:
+                options = dropdown.find_all('option')
+                
+                for option in options:
+                    parts = option['value'].split('-')
+                    rcrun = parts[0] if len(parts) >= 2 else option['value']
+                    
+                    cycle_url = f"{grades_url}?RCRun={rcrun}"
+                    cycle_response = sess.get(cycle_url)
+                    cycle_soup = BeautifulSoup(cycle_response.text, 'html.parser')
+                    
+                    report_card_table = cycle_soup.find('table', id='plnMain_dgReportCard')
+                    
+                    if report_card_table:
+                        cycle_gpas = []
+                        rows = report_card_table.find_all('tr', class_='sg-asp-table-data-row')
+                        
+                        for row in rows:
+                            cells = row.find_all('td')
+                            if len(cells) >= 8:
+                                course_link = cells[1].find('a')
+                                if course_link:
+                                    course_name = course_link.get_text(strip=True)
+                                else:
+                                    course_name = cells[1].get_text(strip=True)
+                                
+                                grade_found = None
+                                for i in range(7, min(len(cells), 22)):
+                                    cell_text = cells[i].get_text(strip=True)
+                                    if cell_text and re.match(r'^\d+$', cell_text):
+                                        grade_found = int(cell_text)
+                                        break
+                                
+                                if grade_found:
+                                    course_gpa = calculate_gpa_for_grade(grade_found, course_name)
+                                    cycle_gpas.append(course_gpa)
+                        
+                        # Calculate average GPA for this cycle
+                        if cycle_gpas:
+                            cycle_avg = sum(cycle_gpas) / len(cycle_gpas)
+                            past_cycle_gpas.append(cycle_avg)
+        except Exception as e:
+            print(f"Error fetching past cycles: {str(e)}")
+            # Continue with calculation even if past cycles fail
         
+        # Combine all GPAs
+        all_gpas = current_course_gpas + past_cycle_gpas
         cumulative_gpa = round(sum(all_gpas) / len(all_gpas), 2) if all_gpas else 0
         
         return jsonify({
             'cumulative_gpa': cumulative_gpa,
             'current_courses_count': len(current_course_gpas),
-            'previous_years_count': len([gpa for gpa in previous_gpas if gpa])
+            'past_cycles_count': len(past_cycle_gpas),
+            'past_cycle_gpas': [round(gpa, 2) for gpa in past_cycle_gpas]
         })
     except Exception as e:
+        print(f"GPA calculation error: {str(e)}")
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/assignments/<course_id>', methods=['GET'])

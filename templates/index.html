@@ -13,7 +13,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -27,10 +27,11 @@
         }
 
         .login-box, .grades-container {
-            background: rgb(170, 108, 108);
+            background: rgba(255, 255, 255, 0.98);
             border-radius: 20px;
             padding: 40px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            backdrop-filter: blur(10px);
         }
 
         .login-box {
@@ -39,14 +40,15 @@
         }
 
         h1 {
-            color: #374151;
+            color: #5a67d8;
             margin-bottom: 10px;
             font-size: 32px;
             text-align: center;
+            font-weight: 700;
         }
 
         .subtitle {
-            color: #666;
+            color: #718096;
             text-align: center;
             margin-bottom: 30px;
             font-size: 14px;
@@ -75,19 +77,19 @@
 
         input:focus {
             outline: none;
-            border-color: #4a5568;
-            box-shadow: 0 0 0 3px rgba(74, 85, 104, 0.1);
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
             background: #fafafa;
         }
         
         input:hover:not(:focus) {
-            border-color: #9CA3AF;
+            border-color: #a0aec0;
         }
 
         button {
             width: 100%;
             padding: 14px;
-            background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
             border-radius: 10px;
@@ -100,12 +102,13 @@
         }
 
         button:hover {
-            background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
-            box-shadow: 0 4px 12px rgba(74, 85, 104, 0.3);
+            background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            transform: translateY(-2px);
         }
 
         button:active {
-            box-shadow: 0 2px 6px rgba(74, 85, 104, 0.3);
+            box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
             transform: scale(0.98);
         }
 
@@ -120,7 +123,7 @@
 
         .loading {
             text-align: center;
-            color: #6B7280;
+            color: #667eea;
             margin-top: 20px;
         }
 
@@ -139,7 +142,7 @@
         }
 
         .overall-avg {
-            background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%);
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
             color: white;
             padding: 15px 25px;
             border-radius: 15px;
@@ -148,12 +151,14 @@
             cursor: pointer;
             transition: all 0.3s ease;
             border: 2px solid transparent;
+            box-shadow: 0 4px 15px rgba(240, 147, 251, 0.3);
         }
 
         .overall-avg:hover {
-            background: linear-gradient(135deg, #4B5563 0%, #374151 100%);
-            border-color: #9CA3AF;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
+            border-color: rgba(255,255,255,0.3);
+            box-shadow: 0 6px 20px rgba(240, 147, 251, 0.4);
+            transform: translateY(-2px);
         }
 
         .gpa-calculator {
@@ -179,8 +184,8 @@
         
         .course-checkbox:hover {
             background: #ffffff;
-            border-color: #6B7280;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
         }
 
         .course-checkbox input[type="checkbox"] {
@@ -192,7 +197,7 @@
         }
         
         .course-checkbox input[type="checkbox"]:checked {
-            accent-color: #4a5568;
+            accent-color: #667eea;
         }
 
         .course-info {
@@ -201,7 +206,7 @@
 
         .course-gpa-value {
             font-weight: 700;
-            color: #6B7280;
+            color: #667eea;
             font-size: 18px;
             margin-left: 15px;
         }
@@ -225,7 +230,7 @@
         }
 
         .cumulative-gpa-display {
-            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 30px;
             border-radius: 15px;
@@ -233,21 +238,29 @@
             margin-top: 30px;
             font-size: 32px;
             font-weight: 700;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
         }
 
         .back-btn {
-            background: #999;
-            padding: 10px 20px;
+            background: linear-gradient(135deg, #a0aec0 0%, #718096 100%);\n            padding: 10px 20px;
             width: auto;
             font-size: 14px;
             margin-right: 10px;
         }
+        
+        .back-btn:hover {
+            background: linear-gradient(135deg, #718096 0%, #4a5568 100%);
+        }
 
         .logout-btn {
-            background: #f44336;
+            background: linear-gradient(135deg, #fc5c65 0%, #eb3b5a 100%);
             padding: 10px 20px;
             width: auto;
             font-size: 14px;
+        }
+        
+        .logout-btn:hover {
+            background: linear-gradient(135deg, #eb3b5a 0%, #d63031 100%);
         }
 
         .course-card {
@@ -263,8 +276,9 @@
 
         .course-card:hover {
             background: #ffffff;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-            border-color: #6B7280;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+            border-color: #667eea;
+            transform: translateY(-2px);
         }
         
         .course-card:active {
@@ -288,7 +302,7 @@
         .course-grade {
             font-size: 24px;
             font-weight: 700;
-            color: #6B7280;
+            color: #667eea;
             margin-left: 20px;
         }
 
@@ -340,13 +354,13 @@
             gap: 15px;
             padding: 12px;
             font-weight: 600;
-            color: #6B7280;
+            color: #667eea;
             margin-bottom: 10px;
         }
 
         .assignment-score {
             font-weight: 600;
-            color: #48bb78;
+            color: #10b981;
         }
 
         .no-assignments {
@@ -358,7 +372,7 @@
 
         .loading-assignments {
             text-align: center;
-            color: #6B7280;
+            color: #667eea;
             padding: 20px;
         }
 
@@ -409,7 +423,7 @@
                     <p class="subtitle">Click on a course to view assignments</p>
                 </div>
                 <div style="display: flex; gap: 15px; align-items: center;">
-                    <button class="back-btn" onclick="showReportCard()" style="background: #10B981; width: auto;">Report Card</button>
+                    <button class="back-btn" onclick="showReportCard()" style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); width: auto;">📋 Report Card</button>
                     <div class="overall-avg" onclick="showGPACalculator()">
                         GPA: <span id="currentGPA">Calculating...</span>
                     </div>
@@ -425,7 +439,7 @@
             <div class="header">
                 <div>
                     <h1>GPA Calculator</h1>
-                    <p class="subtitle">Select courses and enter previous year GPAs</p>
+                    <p class="subtitle">Select courses - Past cycles auto-included</p>
                 </div>
                 <div style="display: flex; gap: 15px;">
                     <button class="back-btn" onclick="backToGrades()">Back</button>
@@ -437,34 +451,24 @@
             <p style="color: #666; margin-bottom: 20px;">Select courses to include in GPA calculation</p>
             <div id="courseCheckboxes"></div>
 
-            <div class="previous-gpa-inputs">
-                <h3 style="color: #333; margin-bottom: 15px;">Previous Year GPAs (Optional)</h3>
-                <p style="color: #666; margin-bottom: 15px;">Enter up to 4 previous year GPAs</p>
-                <div class="gpa-input-row">
-                    <label>Year 1:</label>
-                    <input type="number" step="0.01" min="0" max="6" id="prevGPA1" placeholder="0.00">
-                </div>
-                <div class="gpa-input-row">
-                    <label>Year 2:</label>
-                    <input type="number" step="0.01" min="0" max="6" id="prevGPA2" placeholder="0.00">
-                </div>
-                <div class="gpa-input-row">
-                    <label>Year 3:</label>
-                    <input type="number" step="0.01" min="0" max="6" id="prevGPA3" placeholder="0.00">
-                </div>
-                <div class="gpa-input-row">
-                    <label>Year 4:</label>
-                    <input type="number" step="0.01" min="0" max="6" id="prevGPA4" placeholder="0.00">
+            <div class="previous-gpa-inputs" style="margin-top: 30px; background: #f0f4ff; padding: 20px; border-radius: 10px; border: 2px solid #667eea;">
+                <h3 style="color: #667eea; margin-bottom: 15px;">📊 Past Cycles (Auto-Loaded)</h3>
+                <p style="color: #4a5568; margin-bottom: 15px; font-size: 14px;">
+                    Past cycle GPAs are automatically included from your transcript data.
+                </p>
+                <div id="pastCyclesDisplay" style="color: #718096; font-size: 14px;">
+                    Loading past cycles...
                 </div>
             </div>
 
-            <button onclick="calculateCumulativeGPA()" style="margin-top: 20px;">Recalculate GPA</button>
-            
-            <button onclick="saveGPASettings()" style="margin-top: 10px; background: linear-gradient(135deg, #10B981 0%, #059669 100%);">Save My Settings</button>
+            <button onclick="calculateCumulativeGPA()" style="margin-top: 20px;">Calculate GPA</button>
 
             <div id="cumulativeGPAResult" class="cumulative-gpa-display hidden">
                 <div>Cumulative GPA</div>
                 <div id="cumulativeGPAValue" style="font-size: 48px; margin-top: 10px;">0.00</div>
+                <div style="font-size: 14px; margin-top: 15px; opacity: 0.9;">
+                    Includes current courses + past cycles from transcript
+                </div>
             </div>
         </div>
 
@@ -585,7 +589,7 @@
                 card.className = 'course-card';
                 card.onclick = () => toggleAssignments(index);
                 
-                const gpaDisplay = course.gpa ? `<span style="color: #10B981; margin-left: 15px; font-size: 16px;">GPA: ${course.gpa}</span>` : '';
+                const gpaDisplay = course.gpa ? `<span style="color: #667eea; margin-left: 15px; font-size: 16px; font-weight: 600;">GPA: ${course.gpa}</span>` : '';
                 
                 card.innerHTML = `
                     <div class="course-header">
@@ -697,8 +701,6 @@
                 }
             });
             
-            const savedGPAs = JSON.parse(localStorage.getItem('previousGPAs') || '[]');
-            
             try {
                 const response = await fetch('/api/calculate-gpa', {
                     method: 'POST',
@@ -707,8 +709,7 @@
                         'X-Session-ID': sessionId
                     },
                     body: JSON.stringify({
-                        selected_courses: selectedCourses,
-                        previous_gpas: savedGPAs
+                        selected_courses: selectedCourses
                     })
                 });
                 
@@ -733,28 +734,15 @@
                 }
             });
             
-            const previousGPAs = [
-                document.getElementById('prevGPA1').value,
-                document.getElementById('prevGPA2').value,
-                document.getElementById('prevGPA3').value,
-                document.getElementById('prevGPA4').value
-            ].filter(gpa => gpa !== '');
-            
             localStorage.setItem('selectedCourses', JSON.stringify(selectedCourses));
-            localStorage.setItem('previousGPAs', JSON.stringify(previousGPAs));
             
-            alert('Settings saved! Your preferences will be remembered.');
+            alert('Settings saved! Your course preferences will be remembered.');
             autoCalculateGPA();
         }
 
         // Load GPA Settings from localStorage
         function loadGPASettings() {
-            const savedGPAs = JSON.parse(localStorage.getItem('previousGPAs') || '[]');
-            
-            if (savedGPAs[0]) document.getElementById('prevGPA1').value = savedGPAs[0];
-            if (savedGPAs[1]) document.getElementById('prevGPA2').value = savedGPAs[1];
-            if (savedGPAs[2]) document.getElementById('prevGPA3').value = savedGPAs[2];
-            if (savedGPAs[3]) document.getElementById('prevGPA4').value = savedGPAs[3];
+            // Settings now loaded in showGPACalculator
         }
 
         // Back to Grades
@@ -774,13 +762,6 @@
                 }
             });
             
-            const previousGPAs = [
-                document.getElementById('prevGPA1').value,
-                document.getElementById('prevGPA2').value,
-                document.getElementById('prevGPA3').value,
-                document.getElementById('prevGPA4').value
-            ].filter(gpa => gpa !== '');
-            
             try {
                 const response = await fetch('/api/calculate-gpa', {
                     method: 'POST',
@@ -789,8 +770,7 @@
                         'X-Session-ID': sessionId
                     },
                     body: JSON.stringify({
-                        selected_courses: selectedCourses,
-                        previous_gpas: previousGPAs
+                        selected_courses: selectedCourses
                     })
                 });
                 
@@ -803,6 +783,19 @@
                 
                 if (!response.ok) {
                     throw new Error(data.error || 'Failed to calculate GPA');
+                }
+                
+                // Display past cycles info
+                const pastCyclesDiv = document.getElementById('pastCyclesDisplay');
+                if (data.past_cycles_count > 0) {
+                    let cycleInfo = `✓ ${data.past_cycles_count} past cycle(s) automatically included<br>`;
+                    cycleInfo += `<div style="margin-top: 10px; padding: 10px; background: white; border-radius: 5px;">`;
+                    cycleInfo += `<strong>Past Cycle GPAs:</strong> `;
+                    cycleInfo += data.past_cycle_gpas.map(gpa => gpa.toFixed(2)).join(', ');
+                    cycleInfo += `</div>`;
+                    pastCyclesDiv.innerHTML = cycleInfo;
+                } else {
+                    pastCyclesDiv.innerHTML = '⚠️ No past cycles found in transcript';
                 }
                 
                 document.getElementById('cumulativeGPAValue').textContent = data.cumulative_gpa.toFixed(2);
@@ -862,16 +855,18 @@
                 reportCardData = data;
                 
                 if (data.cycles && data.cycles.length > 0) {
-                    let html = '<div style="margin-bottom: 20px;"><button onclick="addPastCyclesToGPA()" style="width: 100%; background: linear-gradient(135deg, #10B981 0%, #059669 100%);">Add Past Cycles to GPA Calculator</button></div>';
+                    let html = '<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e0e7ff 0%, #fce7f3 100%); border-radius: 10px; border: 2px solid #667eea;">';
+                    html += '<p style="color: #5a67d8; font-weight: 600; margin: 0;">✓ Past cycles are automatically included in GPA calculations</p>';
+                    html += '</div>';
                     
                     data.cycles.forEach((cycle, cycleIndex) => {
                         html += `
-                            <div style="margin-bottom: 30px; background: white; border-radius: 15px; padding: 20px; border: 2px solid #e5e7eb;">
+                            <div style="margin-bottom: 30px; background: white; border-radius: 15px; padding: 20px; border: 2px solid #e5e7eb; transition: all 0.3s ease;" onmouseover="this.style.borderColor='#667eea'" onmouseout="this.style.borderColor='#e5e7eb'">
                                 <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleCycle(${cycleIndex})">
-                                    <h2 style="color: #374151; margin: 0; font-size: 20px;">
+                                    <h2 style="color: #5a67d8; margin: 0; font-size: 20px;">
                                         <span id="cycle-arrow-${cycleIndex}">▼</span> ${cycle.cycle_name}
                                     </h2>
-                                    <div style="color: #6B7280; font-size: 18px; font-weight: 700;">
+                                    <div style="color: #667eea; font-size: 18px; font-weight: 700;">
                                         Avg GPA: ${cycle.average_gpa.toFixed(2)}
                                     </div>
                                 </div>
@@ -885,7 +880,7 @@
                                         <div style="font-weight: 600; color: #333;">${course.course}</div>
                                         <div style="font-size: 12px; color: #999;">${course.course_code}</div>
                                     </div>
-                                    <div style="font-size: 20px; font-weight: 700; color: #6B7280; margin-left: 15px; min-width: 60px; text-align: center;">
+                                    <div style="font-size: 20px; font-weight: 700; color: #667eea; margin-left: 15px; min-width: 60px; text-align: center;">
                                         ${course.grade}
                                     </div>
                                     <div class="course-gpa-value">
