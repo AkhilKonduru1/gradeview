@@ -648,8 +648,39 @@
     </div>
 
     <script>
-        let sessionId = null;
+        let sessionId = localStorage.getItem('sessionId') || null;
         let allGradesData = [];
+        
+        // Check if we have a saved session on page load
+        if (sessionId) {
+            // Try to restore session
+            restoreSession();
+        }
+        
+        async function restoreSession() {
+            try {
+                const response = await fetch('/api/grades', {
+                    headers: {
+                        'X-Session-ID': sessionId
+                    }
+                });
+                
+                if (response.ok) {
+                    // Session is valid, load grades
+                    await loadGrades();
+                    document.getElementById('loginBox').classList.add('hidden');
+                    document.getElementById('gradesContainer').classList.remove('hidden');
+                } else {
+                    // Session expired, clear it
+                    sessionId = null;
+                    localStorage.removeItem('sessionId');
+                }
+            } catch (error) {
+                // Session invalid, clear it
+                sessionId = null;
+                localStorage.removeItem('sessionId');
+            }
+        }
 
         // Theme Management
         const themes = {
@@ -799,6 +830,7 @@
                 }
                 
                 sessionId = data.session_id;
+                localStorage.setItem('sessionId', sessionId); // Save session
                 await loadGrades();
                 
                 document.getElementById('loginBox').classList.add('hidden');
@@ -830,6 +862,12 @@
                 const data = await response.json();
                 
                 if (!response.ok) {
+                    if (response.status === 401) {
+                        // Session expired
+                        sessionId = null;
+                        localStorage.removeItem('sessionId');
+                        throw new Error('Session expired. Please log in again.');
+                    }
                     throw new Error(data.error || 'Failed to load grades');
                 }
                 
@@ -840,6 +878,9 @@
                 await autoCalculateGPA();
                 
             } catch (error) {
+                if (error.message.includes('Session expired')) {
+                    logout();
+                }
                 alert('Error loading grades: ' + error.message);
             }
         }
@@ -1022,6 +1063,12 @@
 
         // Calculate Cumulative GPA
         async function calculateCumulativeGPA() {
+            if (!sessionId) {
+                alert('Session expired. Please log in again.');
+                logout();
+                return;
+            }
+            
             const selectedCourses = [];
             allGradesData.forEach(course => {
                 const checkbox = document.getElementById(`course-${course.course_id}`);
@@ -1054,6 +1101,12 @@
                 const data = await response.json();
                 
                 if (!response.ok) {
+                    if (response.status === 401) {
+                        // Session expired
+                        alert('Your session has expired. Please log in again.');
+                        logout();
+                        return;
+                    }
                     throw new Error(data.error || 'Failed to calculate GPA');
                 }
                 
@@ -1147,10 +1200,12 @@
         function logout() {
             sessionId = null;
             allGradesData = [];
+            localStorage.removeItem('sessionId'); // Clear saved session
             document.getElementById('loginBox').classList.remove('hidden');
             document.getElementById('gradesContainer').classList.add('hidden');
             document.getElementById('gpaCalculator').classList.add('hidden');
             document.getElementById('reportCardContainer').classList.add('hidden');
+            document.getElementById('themeModal').classList.add('hidden');
             document.getElementById('loginForm').reset();
         }
 
