@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HAC Grade Checker</title>
+    <title>GradeView - Smart Grade Tracking</title>
     <style>
         :root {
             --primary-color-1: #667eea;
@@ -496,8 +496,8 @@
     <div class="container">
         <!-- Login Form -->
         <div id="loginBox" class="login-box">
-            <h1>HAC Grade Checker</h1>
-            <p class="subtitle">Leander ISD Home Access Center</p>
+            <h1>🎓 GradeView</h1>
+            <p class="subtitle">Smart Grade Tracking & GPA Calculator</p>
             
             <div id="errorMessage" class="error-message"></div>
             
@@ -530,6 +530,26 @@
                         GPA: <span id="currentGPA">Calculating...</span>
                     </div>
                     <button class="logout-btn" onclick="logout()">Logout</button>
+                </div>
+            </div>
+            
+            <!-- Grade Statistics Dashboard -->
+            <div id="gradeStats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px; padding: 20px; background: linear-gradient(135deg, #f0f4ff 0%, #fef3f2 100%); border-radius: 15px; border: 2px solid var(--primary-color-1);">
+                <div style="text-align: center; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <div style="font-size: 14px; color: #666; margin-bottom: 5px;">📊 Average</div>
+                    <div id="avgGrade" style="font-size: 28px; font-weight: 700; color: var(--primary-color-1);">--</div>
+                </div>
+                <div style="text-align: center; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <div style="font-size: 14px; color: #666; margin-bottom: 5px;">⭐ Highest</div>
+                    <div id="highestGrade" style="font-size: 28px; font-weight: 700; color: var(--success-color-1);">--</div>
+                </div>
+                <div style="text-align: center; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <div style="font-size: 14px; color: #666; margin-bottom: 5px;">📚 Classes</div>
+                    <div id="totalClasses" style="font-size: 28px; font-weight: 700; color: var(--primary-color-2);">--</div>
+                </div>
+                <div style="text-align: center; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <div style="font-size: 14px; color: #666; margin-bottom: 5px;">🎯 GPA</div>
+                    <div id="quickGPA" style="font-size: 28px; font-weight: 700; color: var(--accent-color-1);">--</div>
                 </div>
             </div>
             
@@ -572,6 +592,25 @@
             </div>
 
             <button onclick="calculateCumulativeGPA()" style="margin-top: 20px;">Calculate GPA</button>
+
+            <!-- What-If GPA Calculator -->
+            <div id="whatIfSection" style="margin-top: 30px; padding: 20px; background: linear-gradient(135deg, #fef3f2 0%, #f0f4ff 100%); border-radius: 10px; border: 2px solid var(--accent-color-1); display: none;">
+                <h3 style="color: var(--heading-color); margin-bottom: 10px;">🎯 What-If GPA Calculator</h3>
+                <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+                    Experiment with different grades to see how they would affect your cumulative GPA
+                </p>
+                <button onclick="toggleWhatIfMode()" style="width: auto; padding: 10px 20px; margin-bottom: 15px;" id="whatIfToggleBtn">
+                    Enable What-If Mode
+                </button>
+                <div id="whatIfControls" style="display: none;">
+                    <p style="color: #059669; font-size: 13px; margin-bottom: 10px; font-weight: 600;">
+                        ✓ What-If Mode Active - Adjust grades below to see projected GPA
+                    </p>
+                    <div id="whatIfGPADisplay" style="text-align: center; padding: 15px; background: white; border-radius: 10px; font-size: 24px; font-weight: 700; color: var(--primary-color-1); margin-top: 10px;">
+                        Projected GPA: <span id="whatIfGPAValue">0.00</span>
+                    </div>
+                </div>
+            </div>
 
             <div id="cumulativeGPAResult" class="cumulative-gpa-display hidden">
                 <div>Cumulative GPA</div>
@@ -873,6 +912,7 @@
                 
                 allGradesData = data.grades;
                 displayGrades(data.grades);
+                updateGradeStatistics(data.grades);
                 
                 // Auto-calculate GPA on load
                 await autoCalculateGPA();
@@ -883,6 +923,37 @@
                 }
                 alert('Error loading grades: ' + error.message);
             }
+        }
+
+        // Update Grade Statistics
+        function updateGradeStatistics(grades) {
+            let total = 0;
+            let count = 0;
+            let highest = 0;
+            let totalGPA = 0;
+            let gpaCount = 0;
+            
+            grades.forEach(grade => {
+                if (grade.numeric_grade) {
+                    total += grade.numeric_grade;
+                    count++;
+                    if (grade.numeric_grade > highest) {
+                        highest = grade.numeric_grade;
+                    }
+                }
+                if (grade.gpa) {
+                    totalGPA += grade.gpa;
+                    gpaCount++;
+                }
+            });
+            
+            const average = count > 0 ? (total / count).toFixed(2) : '--';
+            const avgGPA = gpaCount > 0 ? (totalGPA / gpaCount).toFixed(2) : '--';
+            
+            document.getElementById('avgGrade').textContent = average;
+            document.getElementById('highestGrade').textContent = highest > 0 ? highest.toFixed(0) : '--';
+            document.getElementById('totalClasses').textContent = grades.length;
+            document.getElementById('quickGPA').textContent = avgGPA;
         }
 
         // Display Grades
@@ -1173,9 +1244,130 @@
                 document.getElementById('cumulativeGPAResult').classList.remove('hidden');
                 document.getElementById('currentGPA').textContent = data.cumulative_gpa.toFixed(2);
                 
+                // Show What-If section after first calculation
+                document.getElementById('whatIfSection').style.display = 'block';
+                
             } catch (error) {
                 alert('Error calculating GPA: ' + error.message);
             }
+        }
+        
+        // What-If Mode Variables
+        let whatIfModeActive = false;
+        let whatIfGrades = {};
+        
+        // Toggle What-If Mode
+        function toggleWhatIfMode() {
+            whatIfModeActive = !whatIfModeActive;
+            const controls = document.getElementById('whatIfControls');
+            const btn = document.getElementById('whatIfToggleBtn');
+            
+            if (whatIfModeActive) {
+                controls.style.display = 'block';
+                btn.textContent = 'Disable What-If Mode';
+                btn.style.background = 'linear-gradient(135deg, #fc5c65 0%, #eb3b5a 100%)';
+                enableWhatIfEditing();
+            } else {
+                controls.style.display = 'none';
+                btn.textContent = 'Enable What-If Mode';
+                btn.style.background = 'linear-gradient(135deg, var(--primary-color-1) 0%, var(--primary-color-2) 100%)';
+                disableWhatIfEditing();
+                whatIfGrades = {};
+            }
+        }
+        
+        // Enable What-If Editing on Courses
+        function enableWhatIfEditing() {
+            const checkboxContainer = document.getElementById('courseCheckboxes');
+            const checkboxes = checkboxContainer.querySelectorAll('.course-checkbox');
+            
+            checkboxes.forEach((checkbox, idx) => {
+                const course = allGradesData[idx];
+                if (course && course.numeric_grade) {
+                    const gradeDisplay = checkbox.querySelector('.course-info > div:nth-child(2)');
+                    if (gradeDisplay) {
+                        const currentGrade = course.numeric_grade;
+                        gradeDisplay.innerHTML = `
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="color: #666; font-size: 14px;">Grade:</span>
+                                <input type="number" 
+                                       id="whatif-grade-${course.course_id}" 
+                                       value="${currentGrade}" 
+                                       min="0" 
+                                       max="100" 
+                                       onchange="updateWhatIfGPA()"
+                                       style="width: 70px; padding: 5px; border: 2px solid var(--primary-color-1); border-radius: 5px; font-size: 14px; font-weight: 600;">
+                            </div>
+                        `;
+                    }
+                }
+            });
+            
+            updateWhatIfGPA();
+        }
+        
+        // Disable What-If Editing
+        function disableWhatIfEditing() {
+            const checkboxContainer = document.getElementById('courseCheckboxes');
+            checkboxContainer.innerHTML = '';
+            
+            // Repopulate with normal view
+            const savedCourses = JSON.parse(localStorage.getItem('selectedCourses') || '[]');
+            
+            allGradesData.forEach(course => {
+                if (course.gpa !== null) {
+                    const isChecked = savedCourses.length === 0 || savedCourses.includes(course.course_id);
+                    const div = document.createElement('div');
+                    div.className = 'course-checkbox';
+                    div.innerHTML = `
+                        <input type="checkbox" id="course-${course.course_id}" value="${course.course_id}" ${isChecked ? 'checked' : ''} onchange="autoCalculateGPA()">
+                        <div class="course-info">
+                            <div style="font-weight: 600;">${course.name}</div>
+                            <div style="color: #666; font-size: 14px;">Grade: ${course.grade}</div>
+                        </div>
+                        <div class="course-gpa-value">GPA: ${course.gpa}</div>
+                    `;
+                    checkboxContainer.appendChild(div);
+                }
+            });
+        }
+        
+        // Update What-If GPA
+        function updateWhatIfGPA() {
+            let totalGPA = 0;
+            let count = 0;
+            
+            allGradesData.forEach(course => {
+                const checkbox = document.getElementById(`course-${course.course_id}`);
+                const gradeInput = document.getElementById(`whatif-grade-${course.course_id}`);
+                
+                if (checkbox && checkbox.checked && gradeInput) {
+                    const grade = parseFloat(gradeInput.value) || 0;
+                    const gpa = calculateGPAForGrade(grade, course.name);
+                    totalGPA += gpa;
+                    count++;
+                }
+            });
+            
+            const avgGPA = count > 0 ? (totalGPA / count).toFixed(2) : '0.00';
+            document.getElementById('whatIfGPAValue').textContent = avgGPA;
+        }
+        
+        // Calculate GPA for a grade (client-side)
+        function calculateGPAForGrade(gradePercent, courseName) {
+            const roundedGrade = Math.round(gradePercent);
+            
+            let baseGPA = 5.0;
+            if (courseName.toUpperCase().includes('AP')) {
+                baseGPA = 6.0;
+            } else if (courseName.toUpperCase().includes('ADV') || courseName.toUpperCase().includes('ADVANCED')) {
+                baseGPA = 5.5;
+            }
+            
+            const pointsBelow100 = 100 - roundedGrade;
+            const gpa = baseGPA - (pointsBelow100 * 0.1);
+            
+            return Math.max(0, Math.min(gpa, baseGPA));
         }
         
         // Toggle course exclusion

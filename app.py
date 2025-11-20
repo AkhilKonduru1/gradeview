@@ -171,6 +171,33 @@ def get_assignments_for_class(sess, course_index):
 
 user_sessions = {}
 
+# Session cleanup - remove sessions older than 2 hours
+from datetime import datetime, timedelta
+session_timestamps = {}
+
+def cleanup_old_sessions():
+    """Remove sessions older than 2 hours"""
+    current_time = datetime.now()
+    expired_sessions = []
+    for session_id, timestamp in session_timestamps.items():
+        if current_time - timestamp > timedelta(hours=2):
+            expired_sessions.append(session_id)
+    
+    for session_id in expired_sessions:
+        user_sessions.pop(session_id, None)
+        session_timestamps.pop(session_id, None)
+
+def validate_session(session_id):
+    """Validate session and update timestamp"""
+    if not session_id or session_id not in user_sessions:
+        return False
+    # Update timestamp for active session
+    session_timestamps[session_id] = datetime.now()
+    # Cleanup old sessions periodically
+    if len(session_timestamps) % 10 == 0:
+        cleanup_old_sessions()
+    return True
+
 @app.errorhandler(404)
 def not_found(e):
     if request.path.startswith('/api/'):
@@ -204,6 +231,7 @@ def login():
         
         session_id = secrets.token_hex(16)
         user_sessions[session_id] = sess
+        session_timestamps[session_id] = datetime.now()
         
         return jsonify({'session_id': session_id, 'message': 'Login successful'})
     except Exception as e:
@@ -215,8 +243,8 @@ def login():
 def grades():
     session_id = request.headers.get('X-Session-ID')
     
-    if not session_id or session_id not in user_sessions:
-        return jsonify({'error': 'Invalid session'}), 401
+    if not validate_session(session_id):
+        return jsonify({'error': 'Session expired or invalid. Please log in again.'}), 401
     
     sess = user_sessions[session_id]
     
@@ -243,8 +271,8 @@ def grades():
 def calculate_gpa():
     session_id = request.headers.get('X-Session-ID')
     
-    if not session_id or session_id not in user_sessions:
-        return jsonify({'error': 'Invalid session'}), 401
+    if not validate_session(session_id):
+        return jsonify({'error': 'Session expired or invalid. Please log in again.'}), 401
     
     try:
         data = request.json
@@ -355,8 +383,8 @@ def calculate_gpa():
 def assignments(course_id):
     session_id = request.headers.get('X-Session-ID')
     
-    if not session_id or session_id not in user_sessions:
-        return jsonify({'error': 'Invalid session'}), 401
+    if not validate_session(session_id):
+        return jsonify({'error': 'Session expired or invalid. Please log in again.'}), 401
     
     sess = user_sessions[session_id]
     
@@ -370,8 +398,8 @@ def assignments(course_id):
 def report_card():
     session_id = request.headers.get('X-Session-ID')
     
-    if not session_id or session_id not in user_sessions:
-        return jsonify({'error': 'Invalid session'}), 401
+    if not validate_session(session_id):
+        return jsonify({'error': 'Session expired or invalid. Please log in again.'}), 401
     
     sess = user_sessions[session_id]
     
