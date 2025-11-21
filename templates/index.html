@@ -718,21 +718,21 @@
         }
 
         async function handleAuthenticatedState() {
-            // Load all data in parallel before showing dashboard
-            await Promise.all([
-                loadGrades(),
-                loadReportCard()
-            ]);
+            // Load current grades first so user can enter immediately
+            await loadGrades();
             
-            // Ensure GPA is calculated with full data context
-            await autoCalculateGPA();
-
             document.getElementById('loginBox').classList.add('hidden');
             document.getElementById('dashboardShell').classList.remove('hidden');
             
             const path = window.location.pathname;
             const targetId = routes[path] || 'overviewSection';
             activateSection(targetId, false);
+
+            // Load report card in background
+            loadReportCard().then(() => {
+                console.log("Report card loaded in background");
+                autoCalculateGPA(); // Recalculate with new data
+            }).catch(err => console.error("Background report card load failed", err));
         }
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {

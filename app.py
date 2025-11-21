@@ -419,89 +419,88 @@ def report_card():
         grades_response = sess.get(grades_url)
         soup = BeautifulSoup(grades_response.text, 'html.parser')
         
-        all_cycles = []
-        
+        # Check if we are on the latest report card run
         dropdown = soup.find('select', id='plnMain_ddlRCRuns')
-        cycle_options = []
-        
         if dropdown:
             options = dropdown.find_all('option')
-            for option in options:
-                cycle_value = option.get('value')
-                cycle_text = option.get_text(strip=True)
-                cycle_options.append({'value': cycle_value, 'text': cycle_text})
-        
-        print(f"Found {len(cycle_options)} cycles")
-        
-        for cycle_option in cycle_options:
-            parts = cycle_option['value'].split('-')
-            if len(parts) >= 2:
-                rcrun = parts[0]
-            else:
-                rcrun = cycle_option['value']
-            
-            print(f"Processing cycle: {cycle_option['text']} (RCRun={rcrun})")
-            
-            cycle_url = f"{grades_url}?RCRun={rcrun}"
-            cycle_response = sess.get(cycle_url)
-            cycle_soup = BeautifulSoup(cycle_response.text, 'html.parser')
-            
-            cycle_name = cycle_option['text']
-            
-            report_card_table = cycle_soup.find('table', id='plnMain_dgReportCard')
-            
-            if report_card_table:
-                cycle_courses = []
-                rows = report_card_table.find_all('tr', class_='sg-asp-table-data-row')
+            if options:
+                last_option = options[-1]
+                last_value = last_option.get('value')
                 
-                print(f"  Found {len(rows)} courses in table")
+                selected_option = dropdown.find('option', selected=True)
+                current_value = selected_option.get('value') if selected_option else None
                 
-                for row in rows:
-                    cells = row.find_all('td')
-                    if len(cells) >= 8:
-                        course_code = cells[0].get_text(strip=True)
-                        
-                        course_link = cells[1].find('a')
-                        if course_link:
-                            course_name = course_link.get_text(strip=True)
-                        else:
-                            course_name = cells[1].get_text(strip=True)
-                        
-                        grade_found = None
-                        for i in range(7, min(len(cells), 22)):
-                            cell_text = cells[i].get_text(strip=True)
-                            if cell_text and re.match(r'^\d+$', cell_text):
-                                grade_found = int(cell_text)
-                                break
-                        
-                        if grade_found:
-                            course_gpa = round(calculate_gpa_for_grade(grade_found, course_name), 2)
-                            
-                            cycle_courses.append({
-                                'course': course_name,
-                                'course_code': course_code,
-                                'grade': grade_found,
-                                'numeric_grade': grade_found,
-                                'gpa': course_gpa
-                            })
-                            print(f"    {course_name}: {grade_found} (GPA: {course_gpa})")
-                        else:
-                            print(f"    {course_name}: No grade found")
-                
-                if cycle_courses:
-                    total_gpa = sum(c['gpa'] for c in cycle_courses if c['gpa'])
-                    avg_gpa = round(total_gpa / len(cycle_courses), 2) if cycle_courses else 0
+                # If we are not on the latest run, fetch it
+                if current_value != last_value:
+                    print(f"Switching to latest report card run: {last_value}")
+                    parts = last_value.split('-')
+                    rcrun = parts[0] if len(parts) >= 2 else last_value
                     
-                    all_cycles.append({
-                        'cycle_name': cycle_name,
-                        'courses': cycle_courses,
-                        'average_gpa': avg_gpa
-                    })
-                    print(f"  Added cycle with {len(cycle_courses)} courses, avg GPA: {avg_gpa}")
-                else:
-                    print(f"  No courses found for cycle")
-            else:
-                print(f"  No table found for cycle")
+                    grades_response = sess.get(f"{grades_url}?RCRun={rcrun}")
+                    soup = BeautifulSoup(grades_response.text, 'html.parser')
+
+        report_card_table = soup.find('table', id='plnMain_dgReportCard')
+        
+        if not report_card_table:
+            return jsonify({'cycles': [], 'overall_gpa': 0})
+
+        # Find headers to map columns
+        header_row = report_card_table.find('tr', class_='sg-asp-table-header-row')
+        if not header_row:
+            header_row = report_card_table.find('tr')
+        
+        headers = [th.get_text(strip=True) for th in header_row.find_all(['th', 'td'])]
+        
+        # Map cycle names (C1, C2, etc.) to column indices
+        cycle_indices = {}
+        for idx, header in enumerate(headers):
+            if re.match(r'^C\d+$', header):
+                cycle_indices[header] = idx
+        
+        print(f"Found cycle columns: {cycle_indices}")
+        
+        cycles_data = {c: [] for c in cycle_indices.keys()}
+        
+        rows = report_card_table.find_all('tr', class_='sg-asp-table-data-row')
+        
+        for row in rows:
+            cells = row.find_all('td')
+            if len(cells) < 2: continue
+            
+            course_code = cells[0].get_text(strip=True)
+            course_link = cells[1].find('a')
+            course_name = course_link.get_text(strip=True) if course_link else cells[1].get_text(strip=True)
+            
+            for cycle_name, idx in cycle_indices.items():
+                if idx < len(cells):
+                    grade_text = cells[idx].get_text(strip=True)
+                    if grade_text and re.match(r'^\d+$', grade_text):
+                        grade = int(grade_text)
+                        gpa = round(calculate_gpa_for_grade(grade, course_name), 2)
+                        
+                        cycles_data[cycle_name].append({
+                            'course': course_name,
+                            'course_code': course_code,
+                            'grade': grade,
+                            'numeric_grade': grade,
+                            'gpa': gpa
+                        })
+
+        all_cycles = []
+        # Sort cycles by number (C1, C2...)
+        sorted_cycles = sorted(cycles_data.keys(), key=lambda x: int(x[1:]))
+        
+        for cycle_key in sorted_cycles:
+            courses = cycles_data[cycle_key]
+            if courses:
+                total_gpa = sum(c['gpa'] for c in courses)
+                avg_gpa = round(total_gpa / len(courses), 2)
+                
+                all_cycles.append({
+                    'cycle_name': f"Cycle {cycle_key[1:]}",
+                    'courses': courses,
+                    'average_gpa': avg_gpa
+                })
         
         overall_gpa = 0
         total_courses = 0
@@ -513,12 +512,11 @@ def report_card():
         
         overall_avg_gpa = round(overall_gpa / total_courses, 2) if total_courses > 0 else 0
         
-        print(f"Total cycles: {len(all_cycles)}, Overall GPA: {overall_avg_gpa}")
-        
         return jsonify({
             'cycles': all_cycles,
             'overall_gpa': overall_avg_gpa
         })
+
     except Exception as e:
         print(f"Report card error: {str(e)}")
         print(traceback.format_exc())
