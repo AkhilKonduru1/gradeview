@@ -705,11 +705,41 @@
             restoreSession();
         }
 
+        async function performLogin(username, password) {
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'Login failed');
+            }
+            return data.session_id;
+        }
+
         async function restoreSession() {
             try {
                 await handleAuthenticatedState();
             } catch (error) {
                 console.log("Session restore failed:", error);
+                
+                const cachedUser = localStorage.getItem('cachedUsername');
+                const cachedPass = localStorage.getItem('cachedPassword');
+                
+                if (cachedUser && cachedPass) {
+                    console.log("Attempting auto-login with cached credentials...");
+                    try {
+                        sessionId = await performLogin(cachedUser, cachedPass);
+                        localStorage.setItem('sessionId', sessionId);
+                        await handleAuthenticatedState();
+                        return;
+                    } catch (loginError) {
+                        console.error("Auto-login failed:", loginError);
+                    }
+                }
+
                 sessionId = null;
                 localStorage.removeItem('sessionId');
                 document.getElementById('loginBox').classList.remove('hidden');
@@ -750,19 +780,13 @@
             loading.classList.remove('hidden');
 
             try {
-                const response = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data.error || 'Login failed');
-                }
-
-                sessionId = data.session_id;
+                sessionId = await performLogin(username, password);
                 localStorage.setItem('sessionId', sessionId);
+                
+                // Cache credentials
+                localStorage.setItem('cachedUsername', username);
+                localStorage.setItem('cachedPassword', password);
+
                 await handleAuthenticatedState();
 
             } catch (error) {
@@ -1152,6 +1176,8 @@
             allGradesData = [];
             reportCardData = null;
             localStorage.removeItem('sessionId');
+            localStorage.removeItem('cachedUsername');
+            localStorage.removeItem('cachedPassword');
             document.getElementById('loginBox').classList.remove('hidden');
             document.getElementById('dashboardShell').classList.add('hidden');
             document.getElementById('loginForm').reset();
