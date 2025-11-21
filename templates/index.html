@@ -676,10 +676,29 @@
         let allGradesData = [];
         let reportCardData = null;
 
+        const routes = {
+            '/': 'overviewSection',
+            '/overview': 'overviewSection',
+            '/gpa': 'gpaSection',
+            '/report-card': 'reportCardContainer'
+        };
+
+        const sectionToRoute = {
+            'overviewSection': '/overview',
+            'gpaSection': '/gpa',
+            'reportCardContainer': '/report-card'
+        };
+
         const dashSections = () => document.querySelectorAll('.dash-section');
 
         document.querySelectorAll('.nav-tab').forEach(tab => {
             tab.addEventListener('click', () => activateSection(tab.dataset.target));
+        });
+
+        window.addEventListener('popstate', (event) => {
+            const path = window.location.pathname;
+            const targetId = routes[path] || 'overviewSection';
+            activateSection(targetId, false);
         });
 
         if (sessionId) {
@@ -688,24 +707,32 @@
 
         async function restoreSession() {
             try {
-                const response = await fetch('/api/grades', {
-                    headers: { 'X-Session-ID': sessionId }
-                });
-                if (!response.ok) throw new Error('Session invalid');
                 await handleAuthenticatedState();
             } catch (error) {
+                console.log("Session restore failed:", error);
                 sessionId = null;
                 localStorage.removeItem('sessionId');
+                document.getElementById('loginBox').classList.remove('hidden');
+                document.getElementById('dashboardShell').classList.add('hidden');
             }
         }
 
         async function handleAuthenticatedState() {
-            await loadGrades();
-            // Start fetching report card data in the background
-            loadReportCard();
+            // Load all data in parallel before showing dashboard
+            await Promise.all([
+                loadGrades(),
+                loadReportCard()
+            ]);
+            
+            // Ensure GPA is calculated with full data context
+            await autoCalculateGPA();
+
             document.getElementById('loginBox').classList.add('hidden');
             document.getElementById('dashboardShell').classList.remove('hidden');
-            activateSection('overviewSection');
+            
+            const path = window.location.pathname;
+            const targetId = routes[path] || 'overviewSection';
+            activateSection(targetId, false);
         }
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -718,7 +745,8 @@
 
             errorDiv.style.display = 'none';
             loginBtn.disabled = true;
-            loginBtn.textContent = 'Authenticating...';
+            loginBtn.textContent = 'Loading data...';
+            loading.textContent = 'Authenticating & fetching records...';
             loading.classList.remove('hidden');
 
             try {
@@ -747,8 +775,10 @@
             }
         });
 
-        function activateSection(targetId) {
+        function activateSection(targetId, updateHistory = true) {
             const targetEl = document.getElementById(targetId);
+            if (!targetEl) return;
+
             dashSections().forEach(section => {
                 section.classList.toggle('hidden', section !== targetEl);
             });
@@ -758,6 +788,10 @@
             
             // Scroll to top to simulate page change
             window.scrollTo(0, 0);
+
+            if (updateHistory && sectionToRoute[targetId]) {
+                history.pushState({ section: targetId }, '', sectionToRoute[targetId]);
+            }
 
             if (targetId === 'gpaSection') {
                 prepareGPASection();
@@ -774,8 +808,8 @@
             btn.textContent = 'Refreshing...';
             
             try {
-                await loadGrades();
-                await loadReportCard();
+                await Promise.all([loadGrades(), loadReportCard()]);
+                await autoCalculateGPA();
                 alert('Data refreshed successfully');
             } catch (error) {
                 alert('Failed to refresh data: ' + error.message);

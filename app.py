@@ -212,6 +212,9 @@ def internal_error(e):
     return render_template('index.html')
 
 @app.route('/')
+@app.route('/overview')
+@app.route('/gpa')
+@app.route('/report-card')
 def index():
     return render_template('index.html')
 
