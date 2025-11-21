@@ -571,19 +571,19 @@
                 <div class="hero-graphic">
                     <div class="aplus-card">
                         <div class="aplus-header">
-                            <div style="font-weight: 700; color: var(--text-main);">AP Computer Science A</div>
+                            <div id="heroCourseName" style="font-weight: 700; color: var(--text-main);">--</div>
                             <div class="aplus-badge">Verified</div>
                         </div>
-                        <div class="aplus-grade">98</div>
+                        <div id="heroCourseGrade" class="aplus-grade">--</div>
                         <div class="aplus-label">Current Cycle Average</div>
                         <div class="aplus-details">
                             <div class="aplus-row">
-                                <span>Class Rank</span>
-                                <span>Top 5%</span>
+                                <span>Assignments</span>
+                                <span id="heroAssignmentCount">--</span>
                             </div>
                             <div class="aplus-row">
-                                <span>GPA Impact</span>
-                                <span style="color: var(--success);">+0.05</span>
+                                <span>GPA</span>
+                                <span id="heroCourseGPA" style="color: var(--success);">--</span>
                             </div>
                             <div class="aplus-row">
                                 <span>Last Updated</span>
@@ -806,7 +806,29 @@
             allGradesData = data.grades;
             displayGrades(allGradesData);
             updateHeroStats(data);
+            if (data.highlighted_course) {
+                updateHeroCard(data.highlighted_course);
+            }
             await autoCalculateGPA();
+        }
+
+        function updateHeroCard(course) {
+            document.getElementById('heroCourseName').textContent = course.name;
+            document.getElementById('heroCourseGrade').textContent = course.grade;
+            
+            const gpaElem = document.getElementById('heroCourseGPA');
+            if (course.gpa) {
+                gpaElem.textContent = course.gpa;
+            } else {
+                gpaElem.textContent = '--';
+            }
+
+            const assignElem = document.getElementById('heroAssignmentCount');
+            if (course.assignments && Array.isArray(course.assignments)) {
+                assignElem.textContent = course.assignments.length;
+            } else {
+                assignElem.textContent = '0';
+            }
         }
 
         function displayGrades(grades) {

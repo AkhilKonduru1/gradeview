@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 import re
 import secrets
 import traceback
+import random
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
@@ -260,9 +261,16 @@ def grades():
         
         overall_avg = round(total / count, 2) if count > 0 else 0
         
+        highlighted_course = None
+        if grades_data:
+            valid_courses = [g for g in grades_data if g['numeric_grade'] is not None]
+            if valid_courses:
+                highlighted_course = random.choice(valid_courses)
+        
         return jsonify({
             'grades': grades_data,
-            'overall_average': overall_avg
+            'overall_average': overall_avg,
+            'highlighted_course': highlighted_course
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
