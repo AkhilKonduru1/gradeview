@@ -547,7 +547,7 @@
         <nav class="top-nav">
             <div class="brand">Grade<span>View</span></div>
             <div class="nav-links">
-                <button class="nav-tab active" data-target="gradesContainer">Overview</button>
+                <button class="nav-tab active" data-target="overviewSection">Overview</button>
                 <button class="nav-tab" data-target="gpaSection">GPA Simulator</button>
                 <button class="nav-tab" data-target="reportCardContainer">Report Card</button>
             </div>
@@ -557,68 +557,70 @@
             </div>
         </nav>
 
-        <section class="hero">
-            <div class="hero-content">
-                <h1>Welcome to GradeView</h1>
-                <p>GradeView provides a unified platform to track active cycles, analyze report cards, and forecast your cumulative GPA with real-time data from HAC.</p>
-                <div style="display: flex; gap: 16px;">
-                    <button class="primary-btn" style="width: auto;" onclick="document.getElementById('gradesContainer').scrollIntoView({behavior: 'smooth'})">View Grades</button>
-                    <button class="ghost-btn" style="background: white; border: 1px solid var(--border);" onclick="activateSection('gpaSection')">Calculate GPA</button>
-                </div>
-            </div>
-            <div class="hero-graphic">
-                <div class="aplus-card">
-                    <div class="aplus-header">
-                        <div style="font-weight: 700; color: var(--text-main);">AP Computer Science A</div>
-                        <div class="aplus-badge">Verified</div>
-                    </div>
-                    <div class="aplus-grade">98</div>
-                    <div class="aplus-label">Current Cycle Average</div>
-                    <div class="aplus-details">
-                        <div class="aplus-row">
-                            <span>Class Rank</span>
-                            <span>Top 5%</span>
-                        </div>
-                        <div class="aplus-row">
-                            <span>GPA Impact</span>
-                            <span style="color: var(--success);">+0.05</span>
-                        </div>
-                        <div class="aplus-row">
-                            <span>Last Updated</span>
-                            <span>Just now</span>
-                        </div>
+        <section id="overviewSection" class="dash-section">
+            <section class="hero">
+                <div class="hero-content">
+                    <h1>Welcome to GradeView</h1>
+                    <p>GradeView provides a unified platform to track active cycles, analyze report cards, and forecast your cumulative GPA with real-time data from HAC.</p>
+                    <div style="display: flex; gap: 16px;">
+                        <button class="primary-btn" style="width: auto;" onclick="document.getElementById('gradesList').scrollIntoView({behavior: 'smooth'})">View Grades</button>
+                        <button class="ghost-btn" style="background: white; border: 1px solid var(--border);" onclick="activateSection('gpaSection')">Calculate GPA</button>
                     </div>
                 </div>
-            </div>
-        </section>
+                <div class="hero-graphic">
+                    <div class="aplus-card">
+                        <div class="aplus-header">
+                            <div style="font-weight: 700; color: var(--text-main);">AP Computer Science A</div>
+                            <div class="aplus-badge">Verified</div>
+                        </div>
+                        <div class="aplus-grade">98</div>
+                        <div class="aplus-label">Current Cycle Average</div>
+                        <div class="aplus-details">
+                            <div class="aplus-row">
+                                <span>Class Rank</span>
+                                <span>Top 5%</span>
+                            </div>
+                            <div class="aplus-row">
+                                <span>GPA Impact</span>
+                                <span style="color: var(--success);">+0.05</span>
+                            </div>
+                            <div class="aplus-row">
+                                <span>Last Updated</span>
+                                <span>Just now</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
-        <div class="stats-row">
-            <div class="stat-item">
-                <div class="stat-label">Overall Average</div>
-                <div class="stat-value" id="statOverall">--</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Highest Grade</div>
-                <div class="stat-value" id="statHigh">--</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Lowest Grade</div>
-                <div class="stat-value" id="statLow">--</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Active Courses</div>
-                <div class="stat-value" id="statCourses">--</div>
-            </div>
-        </div>
-
-        <section id="gradesContainer" class="dash-section">
-            <div class="section-header">
-                <div>
-                    <span class="eyebrow">Live Data</span>
-                    <h2>Active Courses</h2>
+            <div class="stats-row">
+                <div class="stat-item">
+                    <div class="stat-label">Overall Average</div>
+                    <div class="stat-value" id="statOverall">--</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Highest Grade</div>
+                    <div class="stat-value" id="statHigh">--</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Lowest Grade</div>
+                    <div class="stat-value" id="statLow">--</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Active Courses</div>
+                    <div class="stat-value" id="statCourses">--</div>
                 </div>
             </div>
-            <div id="gradesList" class="grade-grid"></div>
+
+            <div id="gradesContainer">
+                <div class="section-header">
+                    <div>
+                        <span class="eyebrow">Live Data</span>
+                        <h2>Active Courses</h2>
+                    </div>
+                </div>
+                <div id="gradesList" class="grade-grid"></div>
+            </div>
         </section>
 
         <section id="gpaSection" class="dash-section hidden">
@@ -700,7 +702,7 @@
             await loadGrades();
             document.getElementById('loginBox').classList.add('hidden');
             document.getElementById('dashboardShell').classList.remove('hidden');
-            activateSection('gradesContainer');
+            activateSection('overviewSection');
         }
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -751,10 +753,8 @@
                 btn.classList.toggle('active', btn.dataset.target === targetId);
             });
             
-            // Smooth scroll to section if it's not the hero
-            if(targetId !== 'gradesContainer') {
-                targetEl.scrollIntoView({behavior: 'smooth', block: 'start'});
-            }
+            // Scroll to top to simulate page change
+            window.scrollTo(0, 0);
 
             if (targetId === 'gpaSection') {
                 prepareGPASection();
@@ -901,7 +901,7 @@
                 const data = await response.json();
                 if (response.ok) {
                     const gpaValue = data.cumulative_gpa.toFixed(2);
-                    document.getElementById('currentGPA').textContent = gpaValue;
+                    // document.getElementById('currentGPA').textContent = gpaValue;
                     document.getElementById('navCurrentGPA').textContent = gpaValue;
                 }
             } catch (error) {
@@ -954,7 +954,7 @@
                 }
                 
                 const gpaValue = data.cumulative_gpa.toFixed(2);
-                document.getElementById('currentGPA').textContent = gpaValue;
+                // document.getElementById('currentGPA').textContent = gpaValue;
                 document.getElementById('navCurrentGPA').textContent = gpaValue;
 
                 if (data.past_cycles_count > 0 && data.past_cycles_detail) {
