@@ -856,7 +856,9 @@
             } else {
                 gpaElem.textContent = '--';
             }
-
+            if (course.gpa===100){
+                gpaElem.style.color = 'orange';
+            }
             const assignElem = document.getElementById('heroAssignmentCount');
             if (course.assignments && Array.isArray(course.assignments)) {
                 assignElem.textContent = course.assignments.length;
