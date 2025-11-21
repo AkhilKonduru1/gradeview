@@ -553,6 +553,7 @@
             </div>
             <div class="nav-actions">
                 <span style="font-weight: 600; font-size: 14px;">GPA <span id="navCurrentGPA" style="color: var(--accent);">--</span></span>
+                <button class="ghost-btn" onclick="refreshData()" id="refreshBtn">Refresh</button>
                 <button class="ghost-btn" onclick="logout()">Sign out</button>
             </div>
         </nav>
@@ -700,6 +701,8 @@
 
         async function handleAuthenticatedState() {
             await loadGrades();
+            // Start fetching report card data in the background
+            loadReportCard();
             document.getElementById('loginBox').classList.add('hidden');
             document.getElementById('dashboardShell').classList.remove('hidden');
             activateSection('overviewSection');
@@ -761,6 +764,27 @@
             }
             if (targetId === 'reportCardContainer' && !reportCardData) {
                 loadReportCard();
+            }
+        }
+
+        async function refreshData() {
+            const btn = document.getElementById('refreshBtn');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Refreshing...';
+            
+            try {
+                await loadGrades();
+                await loadReportCard();
+                alert('Data refreshed successfully');
+            } catch (error) {
+                alert('Failed to refresh data: ' + error.message);
+                if (error.message.includes('Session expired')) {
+                    logout();
+                }
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
             }
         }
 
@@ -860,7 +884,7 @@
         }
 
         async function autoCalculateGPA() {
-            if (!sessionId) return;
+            // Calculate locally using allGradesData and reportCardData
             const checkboxNodeList = document.querySelectorAll('#courseCheckboxes input[type="checkbox"]');
             const selectedCourses = [];
             const savedCourses = JSON.parse(localStorage.getItem('selectedCourses') || '[]');
@@ -885,110 +909,136 @@
                 const numeric = Number(id);
                 return Number.isNaN(numeric) ? id : numeric;
             });
+            
             const excludedCourses = JSON.parse(localStorage.getItem('excludedCourses') || '[]');
-            try {
-                const response = await fetch('/api/calculate-gpa', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Session-ID': sessionId
-                    },
-                    body: JSON.stringify({
-                        selected_courses: normalizedSelected,
-                        excluded_courses: excludedCourses
-                    })
-                });
-                const data = await response.json();
-                if (response.ok) {
-                    const gpaValue = data.cumulative_gpa.toFixed(2);
-                    // document.getElementById('currentGPA').textContent = gpaValue;
-                    document.getElementById('navCurrentGPA').textContent = gpaValue;
-                }
-            } catch (error) {
-                console.error(error);
-            }
+            
+            performLocalGPACalculation(normalizedSelected, excludedCourses);
         }
 
-        async function calculateCumulativeGPA() {
-            if (!sessionId) {
-                alert('Session expired. Please log in again.');
-                logout();
-                return;
-            }
-            const selectedCourses = [];
-            allGradesData.forEach(course => {
-                const checkbox = document.getElementById(`course-${course.course_id}`);
-                if (checkbox && checkbox.checked) {
-                    selectedCourses.push(String(course.course_id));
-                }
-            });
-            const normalizedSelected = selectedCourses.map(id => {
-                const numeric = Number(id);
-                return Number.isNaN(numeric) ? id : numeric;
-            });
-            const excludedCourses = JSON.parse(localStorage.getItem('excludedCourses') || '[]');
-            const pastCyclesDiv = document.getElementById('pastCyclesDisplay');
-            pastCyclesDiv.textContent = 'Analyzing transcript data...';
+        function performLocalGPACalculation(selectedCourseIds, excludedCourseNames) {
+            let totalGPA = 0;
+            let totalCount = 0;
             
-            try {
-                const response = await fetch('/api/calculate-gpa', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Session-ID': sessionId
-                    },
-                    body: JSON.stringify({
-                        selected_courses: normalizedSelected,
-                        excluded_courses: excludedCourses
-                    })
-                });
-                
-                const data = await response.json();
-                if (!response.ok) {
-                    if (response.status === 401) {
-                        alert('Your session has expired. Please log in again.');
-                        logout();
-                        return;
+            // 1. Current Courses
+            allGradesData.forEach(course => {
+                // Check if course is selected (using string comparison for IDs)
+                if (selectedCourseIds.includes(String(course.course_id)) || selectedCourseIds.includes(course.course_id)) {
+                    if (course.gpa !== null) {
+                        totalGPA += course.gpa;
+                        totalCount++;
                     }
-                    throw new Error(data.error || 'Failed to calculate GPA');
                 }
-                
-                const gpaValue = data.cumulative_gpa.toFixed(2);
-                // document.getElementById('currentGPA').textContent = gpaValue;
-                document.getElementById('navCurrentGPA').textContent = gpaValue;
+            });
 
-                if (data.past_cycles_count > 0 && data.past_cycles_detail) {
-                    let cycleInfo = `<div style="background: #f0fdf4; padding: 16px; border-radius: 8px; border: 1px solid #bbf7d0; margin-bottom: 16px;">`;
-                    cycleInfo += `<strong style="color: #166534;">✓ Successfully retrieved ${data.past_cycles_count} past cycles</strong>`;
-                    cycleInfo += `</div>`;
+            // 2. Past Cycles (if available)
+            let pastCyclesCount = 0;
+            let pastCyclesDetail = [];
+            let allUniqueCourses = new Set();
 
-                    cycleInfo += `<div style="display: grid; gap: 16px;">`;
-                    data.past_cycles_detail.forEach(cycle => {
-                        cycleInfo += `<div style="background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid var(--border);">`;
-                        cycleInfo += `<div style="display: flex; justify-content: space-between; margin-bottom: 12px;">`;
-                        cycleInfo += `<span style="font-weight: 600; color: var(--text-main);">${cycle.cycle_name}</span>`;
-                        cycleInfo += `<span style="font-weight: 700; color: var(--accent);">GPA ${cycle.average_gpa.toFixed(2)}</span>`;
-                        cycleInfo += `</div>`;
+            if (reportCardData && reportCardData.cycles) {
+                reportCardData.cycles.forEach(cycle => {
+                    let cycleCourses = [];
+                    let cycleTotalGPA = 0;
+                    let cycleCourseCount = 0;
+
+                    cycle.courses.forEach(course => {
+                        allUniqueCourses.add(course.course);
                         
-                        cycle.courses.forEach(course => {
-                            cycleInfo += `<div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; color: var(--text-muted);">`;
-                            cycleInfo += `<span>${course.course_name}</span>`;
-                            cycleInfo += `<span>${course.grade} (${course.gpa.toFixed(2)})</span>`;
+                        if (!excludedCourseNames.includes(course.course)) {
+                            if (course.gpa !== null) {
+                                cycleTotalGPA += course.gpa;
+                                cycleCourseCount++;
+                                
+                                cycleCourses.push({
+                                    course_name: course.course,
+                                    grade: course.grade,
+                                    gpa: course.gpa
+                                });
+                            }
+                        }
+                    });
+
+                    if (cycleCourseCount > 0) {
+                        const cycleAvg = cycleTotalGPA / cycleCourseCount;
+                        totalGPA += cycleAvg; // Add cycle average to total GPA sum (assuming unweighted cycle average counts as one unit? No, wait.)
+                        // Wait, how does the backend do it?
+                        // Backend: all_gpas = current_course_gpas + past_cycle_gpas
+                        // past_cycle_gpas is a list of averages for each cycle.
+                        // cumulative_gpa = sum(all_gpas) / len(all_gpas)
+                        
+                        // So each current course counts as 1 unit.
+                        // And each PAST CYCLE AVERAGE counts as 1 unit.
+                        // This seems to be the logic in app.py:
+                        // past_cycle_gpas.append(cycle_avg)
+                        // all_gpas = current_course_gpas + past_cycle_gpas
+                        
+                        totalCount++; // Add 1 for the cycle average
+                        totalGPA += cycleAvg; // Wait, I added course.gpa to totalGPA above for current courses.
+                        // So I should add cycleAvg to totalGPA here.
+                        
+                        pastCyclesCount++;
+                        pastCyclesDetail.push({
+                            cycle_name: cycle.cycle_name,
+                            courses: cycleCourses,
+                            average_gpa: cycleAvg
+                        });
+                    }
+                });
+            }
+
+            // Calculate Cumulative
+            const cumulativeGPA = totalCount > 0 ? (totalGPA / totalCount) : 0;
+            const gpaValue = cumulativeGPA.toFixed(2);
+            
+            // Update UI
+            const navGPA = document.getElementById('navCurrentGPA');
+            if (navGPA) navGPA.textContent = gpaValue;
+            
+            const currentGPA = document.getElementById('currentGPA');
+            if (currentGPA) currentGPA.textContent = gpaValue;
+            
+            const cumulativeValue = document.getElementById('cumulativeGPAValue');
+            if (cumulativeValue) cumulativeValue.textContent = gpaValue;
+
+            // Update Past Cycles UI if we are in the full calculation view
+            const pastCyclesDiv = document.getElementById('pastCyclesDisplay');
+            if (pastCyclesDiv && pastCyclesDiv.textContent !== 'Run calculation to fetch transcript...') {
+                 if (reportCardData) {
+                    if (pastCyclesCount > 0) {
+                        let cycleInfo = `<div style="background: #f0fdf4; padding: 16px; border-radius: 8px; border: 1px solid #bbf7d0; margin-bottom: 16px;">`;
+                        cycleInfo += `<strong style="color: #166534;">✓ Retrieved ${pastCyclesCount} past cycles from local data</strong>`;
+                        cycleInfo += `</div>`;
+
+                        cycleInfo += `<div style="display: grid; gap: 16px;">`;
+                        pastCyclesDetail.forEach(cycle => {
+                            cycleInfo += `<div style="background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid var(--border);">`;
+                            cycleInfo += `<div style="display: flex; justify-content: space-between; margin-bottom: 12px;">`;
+                            cycleInfo += `<span style="font-weight: 600; color: var(--text-main);">${cycle.cycle_name}</span>`;
+                            cycleInfo += `<span style="font-weight: 700; color: var(--accent);">GPA ${cycle.average_gpa.toFixed(2)}</span>`;
+                            cycleInfo += `</div>`;
+                            
+                            cycle.courses.forEach(course => {
+                                cycleInfo += `<div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; color: var(--text-muted);">`;
+                                cycleInfo += `<span>${course.course_name}</span>`;
+                                cycleInfo += `<span>${course.grade} (${course.gpa.toFixed(2)})</span>`;
+                                cycleInfo += `</div>`;
+                            });
                             cycleInfo += `</div>`;
                         });
                         cycleInfo += `</div>`;
-                    });
-                    cycleInfo += `</div>`;
+                        pastCyclesDiv.innerHTML = cycleInfo;
+                    } else {
+                        pastCyclesDiv.innerHTML = 'No past cycles found in loaded data.';
+                    }
                     
-                    pastCyclesDiv.innerHTML = cycleInfo;
-
+                    // Update exclusions list
                     const exclusionSection = document.getElementById('courseExclusionSection');
                     const excludedList = document.getElementById('excludedCoursesList');
-                    if (data.all_unique_courses && data.all_unique_courses.length > 0) {
+                    if (allUniqueCourses.size > 0) {
                         exclusionSection.classList.remove('hidden');
                         let exclusionHTML = '';
-                        data.all_unique_courses.forEach(courseName => {
-                            const isExcluded = excludedCourses.includes(courseName);
+                        Array.from(allUniqueCourses).sort().forEach(courseName => {
+                            const isExcluded = excludedCourseNames.includes(courseName);
                             exclusionHTML += `
                                 <div class="course-checkbox">
                                     <input type="checkbox" id="exclude-${courseName.replace(/\s+/g, '-')}"
@@ -1003,17 +1053,22 @@
                         });
                         excludedList.innerHTML = exclusionHTML;
                     }
-                } else {
-                    pastCyclesDiv.innerHTML = 'No past cycles found in transcript.';
-                }
 
-                document.getElementById('cumulativeGPAValue').textContent = gpaValue;
-                document.getElementById('cumulativeGPAResult').classList.remove('hidden');
-                document.getElementById('cumulativeGPAResult').scrollIntoView({behavior: 'smooth'});
-
-            } catch (error) {
-                alert('Error calculating GPA: ' + error.message);
+                 } else {
+                     pastCyclesDiv.innerHTML = 'Transcript data is loading...';
+                 }
             }
+        }
+
+        async function calculateCumulativeGPA() {
+            // Just trigger the local calculation and show the UI
+            const pastCyclesDiv = document.getElementById('pastCyclesDisplay');
+            pastCyclesDiv.textContent = 'Analyzing transcript data...';
+            
+            document.getElementById('cumulativeGPAResult').classList.remove('hidden');
+            document.getElementById('cumulativeGPAResult').scrollIntoView({behavior: 'smooth'});
+            
+            autoCalculateGPA();
         }
 
         function toggleCourseExclusion(courseName, isExcluded) {
@@ -1026,7 +1081,7 @@
                 excludedCourses = excludedCourses.filter(c => c !== courseName);
             }
             localStorage.setItem('excludedCourses', JSON.stringify(excludedCourses));
-            calculateCumulativeGPA();
+            autoCalculateGPA();
         }
 
         function logout() {
