@@ -856,8 +856,12 @@
             } else {
                 gpaElem.textContent = '--';
             }
-            if (course.gpa===100){
-                gpaElem.style.color = 'orange';
+            if (course.numeric_grade >= 100) {
+                gpaElem.style.color = '#f59e0b'; // Orange
+                document.getElementById('heroCourseGrade').style.color = '#f59e0b';
+            } else {
+                gpaElem.style.color = 'var(--success)';
+                document.getElementById('heroCourseGrade').style.color = 'var(--text-main)';
             }
             const assignElem = document.getElementById('heroAssignmentCount');
             if (course.assignments && Array.isArray(course.assignments)) {
@@ -908,11 +912,24 @@
             }
             let html = '';
             assignments.forEach(assignment => {
+                let scoreColor = 'var(--text-main)';
+                const scoreVal = parseFloat(assignment.score);
+                
+                if (!isNaN(scoreVal)) {
+                    if (scoreVal > 95) {
+                        scoreColor = '#10b981'; // Green
+                    } else if (scoreVal > 80) {
+                        scoreColor = '#0570de'; // Blue
+                    } else {
+                        scoreColor = 'var(--danger)'; // Red
+                    }
+                }
+
                 html += `
                     <div class="assignment-item">
                         <div style="flex: 1; color: var(--text-muted);">${assignment.date_due}</div>
                         <div style="flex: 2; font-weight: 500;">${assignment.name}</div>
-                        <div class="assignment-score">${assignment.score}</div>
+                        <div class="assignment-score" style="color: ${scoreColor}">${assignment.score}</div>
                     </div>
                 `;
             });
