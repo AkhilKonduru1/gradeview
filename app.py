@@ -172,6 +172,7 @@ def get_assignments_for_class(sess, course_index):
     return assignments
 
 user_sessions = {}
+user_credentials = {}
 
 # Session cleanup - remove sessions older than 2 hours
 session_timestamps = {}
@@ -190,8 +191,24 @@ def cleanup_old_sessions():
 
 def validate_session(session_id):
     """Validate session and update timestamp"""
-    if not session_id or session_id not in user_sessions:
+    if not session_id:
         return False
+        
+    if session_id not in user_sessions:
+        # Try to re-login if we have credentials
+        if session_id in user_credentials:
+            try:
+                creds = user_credentials[session_id]
+                sess, error = create_session_and_login(creds['username'], creds['password'])
+                
+                if not error and sess:
+                    user_sessions[session_id] = sess
+                    session_timestamps[session_id] = datetime.now()
+                    return True
+            except Exception as e:
+                print(f"Auto-login failed: {str(e)}")
+        return False
+
     # Update timestamp for active session
     session_timestamps[session_id] = datetime.now()
     # Cleanup old sessions periodically
@@ -235,6 +252,7 @@ def login():
         
         session_id = secrets.token_hex(16)
         user_sessions[session_id] = sess
+        user_credentials[session_id] = {'username': username, 'password': password}
         session_timestamps[session_id] = datetime.now()
         
         return jsonify({'session_id': session_id, 'message': 'Login successful'})
