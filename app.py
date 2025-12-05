@@ -173,6 +173,8 @@ def get_assignments_for_class(sess, course_index):
 
 user_sessions = {}
 user_credentials = {}
+saved_username = None
+saved_password = None
 
 # Session cleanup - remove sessions older than 2 hours
 session_timestamps = {}
@@ -191,18 +193,33 @@ def cleanup_old_sessions():
 
 def validate_session(session_id):
     """Validate session and update timestamp"""
+    global saved_username, saved_password
+    
     if not session_id:
         return False
         
     if session_id not in user_sessions:
         # Try to re-login if we have credentials
+        username_to_use = None
+        password_to_use = None
+        
         if session_id in user_credentials:
+            username_to_use = user_credentials[session_id]['username']
+            password_to_use = user_credentials[session_id]['password']
+        elif saved_username and saved_password:
+            username_to_use = saved_username
+            password_to_use = saved_password
+            
+        if username_to_use and password_to_use:
             try:
-                creds = user_credentials[session_id]
-                sess, error = create_session_and_login(creds['username'], creds['password'])
+                sess, error = create_session_and_login(username_to_use, password_to_use)
                 
                 if not error and sess:
                     user_sessions[session_id] = sess
+                    # Ensure credentials are saved for this session
+                    if session_id not in user_credentials:
+                        user_credentials[session_id] = {'username': username_to_use, 'password': password_to_use}
+                    
                     session_timestamps[session_id] = datetime.now()
                     return True
             except Exception as e:
@@ -220,27 +237,32 @@ def validate_session(session_id):
 def not_found(e):
     if request.path.startswith('/api/'):
         return jsonify({'error': 'API endpoint not found'}), 404
-    return render_template('index.html')
-
-@app.errorhandler(500)
-def internal_error(e):
-    if request.path.startswith('/api/'):
-        return jsonify({'error': 'Internal server error'}), 500
-    return render_template('index.html')
-
-@app.route('/')
-@app.route('/overview')
-@app.route('/gpa')
-@app.route('/report-card')
-def index():
-    return render_template('index.html')
-
 @app.route('/api/login', methods=['POST'])
 def login():
+    global saved_username, saved_password
     try:
         data = request.json
         username = data.get('username')
         password = data.get('password')
+        
+        if not username or not password:
+            return jsonify({'error': 'Username and password required'}), 400
+        
+        sess, error = create_session_and_login(username, password)
+        
+        if error:
+            return jsonify({'error': error}), 401
+        
+        session_id = secrets.token_hex(16)
+        user_sessions[session_id] = sess
+        user_credentials[session_id] = {'username': username, 'password': password}
+        session_timestamps[session_id] = datetime.now()
+        
+        # Save to global variables for auto-relogin
+        saved_username = username
+        saved_password = password
+        
+        return jsonify({'session_id': session_id, 'message': 'Login successful'})
         
         if not username or not password:
             return jsonify({'error': 'Username and password required'}), 400
