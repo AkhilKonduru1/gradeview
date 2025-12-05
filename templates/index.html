@@ -549,7 +549,6 @@
             <div class="nav-links">
                 <button class="nav-tab active" data-target="overviewSection">Overview</button>
                 <button class="nav-tab" data-target="gpaSection">GPA Simulator</button>
-                <button class="nav-tab" data-target="whatIfSection">What If</button>
                 <button class="nav-tab" data-target="reportCardContainer">Report Card</button>
             </div>
             <div class="nav-actions">
@@ -656,61 +655,6 @@
             </div>
         </section>
 
-        <section id="whatIfSection" class="dash-section hidden">
-            <div class="section-header">
-                <div>
-                    <span class="eyebrow">Simulation</span>
-                    <h2>What If Calculator</h2>
-                </div>
-            </div>
-            
-            <div class="gpa-panel">
-                <div class="input-group">
-                    <label for="whatIfCourseSelect">Select Course</label>
-                    <select id="whatIfCourseSelect" class="course-select" onchange="loadWhatIfCourse()">
-                        <option value="">-- Select a Course --</option>
-                    </select>
-                </div>
-
-                <div id="whatIfContent" class="hidden">
-                    <div class="weights-section" style="margin: 20px 0; padding: 20px; background: #f8f9fa; border-radius: 12px;">
-                        <h3 style="margin-bottom: 15px; font-size: 18px;">Category Weights</h3>
-                        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 15px;">Enter the weight percentage for each category (must total 100%).</p>
-                        <div id="categoryWeightsList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;"></div>
-                        <div id="weightTotal" style="margin-top: 10px; font-weight: 600; font-size: 14px;">Total: 0%</div>
-                    </div>
-
-                    <div class="assignments-section">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                            <h3>Assignments</h3>
-                            <button class="ghost-btn" onclick="addWhatIfAssignment()">+ Add Assignment</button>
-                        </div>
-                        
-                        <div class="table-container" style="overflow-x: auto;">
-                            <table style="width: 100%; border-collapse: collapse; min-width: 600px;">
-                                <thead>
-                                    <tr style="text-align: left; border-bottom: 2px solid var(--border);">
-                                        <th style="padding: 10px;">Name</th>
-                                        <th style="padding: 10px;">Category</th>
-                                        <th style="padding: 10px;">Score</th>
-                                        <th style="padding: 10px;">Total</th>
-                                        <th style="padding: 10px;">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="whatIfAssignmentsList"></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div class="calculation-result" style="margin-top: 30px; padding: 20px; background: var(--surface); border-radius: 16px; box-shadow: var(--shadow-md); text-align: center;">
-                        <div style="font-size: 14px; color: var(--text-muted); margin-bottom: 5px;">PROJECTED AVERAGE</div>
-                        <div id="whatIfProjectedGrade" style="font-size: 48px; font-weight: 800; color: var(--accent);">--</div>
-                        <div id="whatIfGradeDiff" style="font-size: 14px; font-weight: 600;"></div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
         <section id="reportCardContainer" class="dash-section hidden">
             <div class="section-header">
                 <div>
@@ -736,14 +680,12 @@
             '/': 'overviewSection',
             '/overview': 'overviewSection',
             '/gpa': 'gpaSection',
-            '/what-if': 'whatIfSection',
             '/report-card': 'reportCardContainer'
         };
 
         const sectionToRoute = {
             'overviewSection': '/overview',
             'gpaSection': '/gpa',
-            'whatIfSection': '/what-if',
             'reportCardContainer': '/report-card'
         };
 
@@ -921,7 +863,6 @@
 
             allGradesData = data.grades;
             displayGrades(allGradesData);
-            populateWhatIfDropdown();
             updateHeroStats(data);
             if (data.highlighted_course) {
                 updateHeroCard(data.highlighted_course);
@@ -1215,235 +1156,6 @@
             document.getElementById('cumulativeGPAResult').scrollIntoView({behavior: 'smooth'});
             
             autoCalculateGPA();
-        }
-
-        // What If Calculator Logic
-        let whatIfCurrentAssignments = [];
-        let whatIfCategories = {};
-
-        function populateWhatIfDropdown() {
-            const select = document.getElementById('whatIfCourseSelect');
-            select.innerHTML = '<option value="">-- Select a Course --</option>';
-            
-            allGradesData.forEach((course, index) => {
-                const option = document.createElement('option');
-                option.value = index;
-                option.textContent = course.name;
-                select.appendChild(option);
-            });
-        }
-
-        function loadWhatIfCourse() {
-            const select = document.getElementById('whatIfCourseSelect');
-            const courseIndex = select.value;
-            const contentDiv = document.getElementById('whatIfContent');
-            
-            if (courseIndex === "") {
-                contentDiv.classList.add('hidden');
-                return;
-            }
-            
-            contentDiv.classList.remove('hidden');
-            const course = allGradesData[courseIndex];
-            
-            // Deep copy assignments
-            whatIfCurrentAssignments = JSON.parse(JSON.stringify(course.assignments || []));
-            
-            // Ensure earned/max are set (backend now provides them, but fallback just in case)
-            whatIfCurrentAssignments.forEach(a => {
-                if (a.earned === undefined || a.earned === null) a.earned = 0;
-                if (a.max_points === undefined || a.max_points === null) a.max_points = 100;
-                // Map max_points to max for frontend consistency
-                a.max = a.max_points;
-            });
-            
-            // Initialize weights from backend if available
-            whatIfCategories = {};
-            if (course.weights && Object.keys(course.weights).length > 0) {
-                whatIfCategories = JSON.parse(JSON.stringify(course.weights));
-            } else {
-                // Fallback to equal distribution if no weights found
-                const categories = new Set();
-                whatIfCurrentAssignments.forEach(a => {
-                    if (a.category) categories.add(a.category);
-                });
-                
-                const catArray = Array.from(categories);
-                const defaultWeight = catArray.length > 0 ? Math.floor(100 / catArray.length) : 100;
-                let remainder = 100 - (defaultWeight * catArray.length);
-                
-                catArray.forEach((cat, idx) => {
-                    whatIfCategories[cat] = defaultWeight + (idx === 0 ? remainder : 0);
-                });
-            }
-            
-            renderCategoryWeights();
-            renderWhatIfAssignments();
-            calculateWhatIf();
-        }
-
-        function renderCategoryWeights() {
-            const container = document.getElementById('categoryWeightsList');
-            container.innerHTML = '';
-            
-            Object.keys(whatIfCategories).forEach(cat => {
-                const div = document.createElement('div');
-                div.className = 'input-group';
-                div.style.marginBottom = '0';
-                div.innerHTML = `
-                    <label style="font-size: 12px; margin-bottom: 4px;">${cat}</label>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <input type="number" value="${whatIfCategories[cat]}" 
-                               onchange="updateCategoryWeight('${cat}', this.value)"
-                               style="width: 80px; padding: 8px; border: 1px solid var(--border); border-radius: 6px;">
-                        <span style="font-size: 14px; color: var(--text-muted);">%</span>
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-            
-            updateWeightTotal();
-        }
-
-        function updateCategoryWeight(category, value) {
-            whatIfCategories[category] = parseFloat(value) || 0;
-            updateWeightTotal();
-            calculateWhatIf();
-        }
-
-        function updateWeightTotal() {
-            const total = Object.values(whatIfCategories).reduce((a, b) => a + b, 0);
-            const totalDiv = document.getElementById('weightTotal');
-            totalDiv.textContent = `Total: ${total}%`;
-            totalDiv.style.color = total === 100 ? 'var(--success)' : 'var(--danger)';
-        }
-
-        function renderWhatIfAssignments() {
-            const tbody = document.getElementById('whatIfAssignmentsList');
-            tbody.innerHTML = '';
-            
-            whatIfCurrentAssignments.forEach((assignment, index) => {
-                const tr = document.createElement('tr');
-                tr.style.borderBottom = '1px solid var(--border)';
-                
-                tr.innerHTML = `
-                    <td style="padding: 10px;">
-                        <input type="text" value="${assignment.name}" 
-                               onchange="updateAssignment(${index}, 'name', this.value)"
-                               style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 4px;">
-                    </td>
-                    <td style="padding: 10px;">
-                        <select onchange="updateAssignment(${index}, 'category', this.value)"
-                                style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 4px;">
-                            ${Object.keys(whatIfCategories).map(cat => 
-                                `<option value="${cat}" ${cat === assignment.category ? 'selected' : ''}>${cat}</option>`
-                            ).join('')}
-                        </select>
-                    </td>
-                    <td style="padding: 10px;">
-                        <input type="number" value="${assignment.earned}" 
-                               onchange="updateAssignment(${index}, 'earned', this.value)"
-                               style="width: 70px; padding: 6px; border: 1px solid var(--border); border-radius: 4px;">
-                    </td>
-                    <td style="padding: 10px;">
-                        <input type="number" value="${assignment.max}" 
-                               onchange="updateAssignment(${index}, 'max', this.value)"
-                               style="width: 70px; padding: 6px; border: 1px solid var(--border); border-radius: 4px;">
-                    </td>
-                    <td style="padding: 10px;">
-                        <button onclick="removeAssignment(${index})" 
-                                style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 18px;">&times;</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        function addWhatIfAssignment() {
-            const categories = Object.keys(whatIfCategories);
-            const defaultCat = categories.length > 0 ? categories[0] : 'General';
-            
-            if (categories.length === 0) {
-                whatIfCategories['General'] = 100;
-                renderCategoryWeights();
-            }
-            
-            whatIfCurrentAssignments.push({
-                name: 'New Assignment',
-                category: defaultCat,
-                earned: 0,
-                max: 100,
-                score: '0/100'
-            });
-            renderWhatIfAssignments();
-            calculateWhatIf();
-        }
-
-        function removeAssignment(index) {
-            whatIfCurrentAssignments.splice(index, 1);
-            renderWhatIfAssignments();
-            calculateWhatIf();
-        }
-
-        function updateAssignment(index, field, value) {
-            if (field === 'earned' || field === 'max') {
-                whatIfCurrentAssignments[index][field] = parseFloat(value) || 0;
-            } else {
-                whatIfCurrentAssignments[index][field] = value;
-            }
-            calculateWhatIf();
-        }
-
-        function calculateWhatIf() {
-            const catEarned = {};
-            const catMax = {};
-            
-            // Initialize
-            Object.keys(whatIfCategories).forEach(cat => {
-                catEarned[cat] = 0;
-                catMax[cat] = 0;
-            });
-            
-            // Sum scores
-            whatIfCurrentAssignments.forEach(a => {
-                const cat = a.category;
-                if (catEarned[cat] !== undefined) {
-                    catEarned[cat] += a.earned;
-                    catMax[cat] += a.max;
-                }
-            });
-            
-            // Calculate weighted average
-            let totalWeightedScore = 0;
-            let totalWeightUsed = 0;
-            
-            Object.keys(whatIfCategories).forEach(cat => {
-                if (catMax[cat] > 0) {
-                    const avg = (catEarned[cat] / catMax[cat]) * 100;
-                    const weight = whatIfCategories[cat];
-                    totalWeightedScore += avg * (weight / 100);
-                    totalWeightUsed += weight;
-                }
-            });
-            
-            let finalGrade = 0;
-            if (totalWeightUsed > 0) {
-                finalGrade = (totalWeightedScore / totalWeightUsed) * 100;
-            }
-            
-            const resultDiv = document.getElementById('whatIfProjectedGrade');
-            resultDiv.textContent = finalGrade.toFixed(2) + '%';
-            
-            // Calculate difference from original
-            const select = document.getElementById('whatIfCourseSelect');
-            if (select.value !== "") {
-                const originalGrade = allGradesData[select.value].numeric_grade || 0;
-                const diff = finalGrade - originalGrade;
-                const diffDiv = document.getElementById('whatIfGradeDiff');
-                const sign = diff >= 0 ? '+' : '';
-                diffDiv.textContent = `${sign}${diff.toFixed(2)}% from current`;
-                diffDiv.style.color = diff >= 0 ? 'var(--success)' : 'var(--danger)';
-            }
         }
 
         function toggleCourseExclusion(courseName, isExcluded) {

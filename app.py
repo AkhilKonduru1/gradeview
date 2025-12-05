@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, jsonify, session
 from flask_cors import CORS
 import requests
-import os
 from bs4 import BeautifulSoup
 import re
 import secrets
@@ -11,14 +10,7 @@ from datetime import datetime, timedelta
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
-
-# Update CORS to allow environment variable or default to localhost
-allowed_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
-env_origin = os.environ.get('FRONTEND_URL')
-if env_origin:
-    allowed_origins.append(env_origin)
-
-CORS(app, origins=allowed_origins, supports_credentials=True)
+CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"], supports_credentials=True)
 
 BASE_URL = "https://lis-hac.eschoolplus.powerschool.com"
 
@@ -67,49 +59,10 @@ def calculate_gpa_for_grade(grade_percent, course_name):
     
     return max(0, min(gpa, base_gpa))
 
-def get_category_weights_internal(cls):
-    weights = {}
-    tables = cls.find_all('table', class_='sg-asp-table')
-    
-    for table in tables:
-        header_row = table.find('tr', class_='sg-asp-table-header-row')
-        if header_row:
-            headers = [th.get_text(strip=True) for th in header_row.find_all(['th', 'td'])]
-            # Look for Category and Weight headers
-            if any('Category' in h for h in headers) and any('Weight' in h for h in headers):
-                rows = table.find_all('tr', class_='sg-asp-table-data-row')
-                for row in rows:
-                    cells = row.find_all('td')
-                    if len(cells) >= 2:
-                        cat_name = cells[0].get_text(strip=True)
-                        weight_text = cells[1].get_text(strip=True)
-                        try:
-                            # Remove % and convert to float
-                            weight_val = float(weight_text.replace('%', '').strip())
-                            weights[cat_name] = weight_val
-                        except ValueError:
-                            pass
-                return weights
-    return {}
-
 def get_assignments_for_class_internal(cls):
     assignments = []
     
-    # Try to find the assignments table specifically
-    tables = cls.find_all('table', class_='sg-asp-table')
-    assignment_table = None
-    
-    for table in tables:
-        header_row = table.find('tr', class_='sg-asp-table-header-row')
-        if header_row:
-            headers = [th.get_text(strip=True) for th in header_row.find_all(['th', 'td'])]
-            if any('Assignment' in h for h in headers) and any('Score' in h for h in headers):
-                assignment_table = table
-                break
-    
-    # Fallback to first table if specific one not found
-    if not assignment_table and tables:
-        assignment_table = tables[0]
+    assignment_table = cls.find('table', class_='sg-asp-table')
     
     if assignment_table:
         rows = assignment_table.find_all('tr', class_='sg-asp-table-data-row')
@@ -121,35 +74,14 @@ def get_assignments_for_class_internal(cls):
                 date_assigned = cells[1].get_text(strip=True)
                 assignment_name = cells[2].get_text(strip=True)
                 category = cells[3].get_text(strip=True)
-                score_text = cells[4].get_text(strip=True) if len(cells) > 4 else 'N/A'
+                score = cells[4].get_text(strip=True) if len(cells) > 4 else 'N/A'
                 
-                earned = None
-                max_points = 100.0
-                
-                if '/' in score_text:
-                    try:
-                        parts = score_text.split('/')
-                        earned = float(parts[0])
-                        max_points = float(parts[1])
-                    except ValueError:
-                        pass
-                elif score_text and score_text != 'N/A':
-                    try:
-                        # Extract number from string like "95.00" or "95%"
-                        match = re.search(r'(\d+\.?\d*)', score_text)
-                        if match:
-                            earned = float(match.group(1))
-                    except ValueError:
-                        pass
-
                 assignments.append({
                     'date_due': date_due,
                     'date_assigned': date_assigned,
                     'name': assignment_name,
                     'category': category,
-                    'score': score_text,
-                    'earned': earned,
-                    'max_points': max_points
+                    'score': score
                 })
     
     return assignments
@@ -187,7 +119,6 @@ def get_grades_data(sess):
                 grade_text = 'No Grade Yet'
             
             assignments = get_assignments_for_class_internal(cls)
-            weights = get_category_weights_internal(cls)
             
             grades.append({
                 'name': course_name,
@@ -195,8 +126,7 @@ def get_grades_data(sess):
                 'numeric_grade': numeric_grade,
                 'gpa': course_gpa,
                 'course_id': str(idx),
-                'assignments': assignments,
-                'weights': weights
+                'assignments': assignments
             })
     
     return grades
@@ -241,12 +171,8 @@ def get_assignments_for_class(sess, course_index):
     
     return assignments
 
-# WARNING: Global variables like these will NOT persist in serverless environments (like Vercel)
-# or across multiple workers in Gunicorn. For production, use a database (Redis, SQL, etc.)
 user_sessions = {}
 user_credentials = {}
-saved_username = None
-saved_password = None
 
 # Session cleanup - remove sessions older than 2 hours
 session_timestamps = {}
@@ -265,33 +191,18 @@ def cleanup_old_sessions():
 
 def validate_session(session_id):
     """Validate session and update timestamp"""
-    global saved_username, saved_password
-    
     if not session_id:
         return False
         
     if session_id not in user_sessions:
         # Try to re-login if we have credentials
-        username_to_use = None
-        password_to_use = None
-        
         if session_id in user_credentials:
-            username_to_use = user_credentials[session_id]['username']
-            password_to_use = user_credentials[session_id]['password']
-        elif saved_username and saved_password:
-            username_to_use = saved_username
-            password_to_use = saved_password
-            
-        if username_to_use and password_to_use:
             try:
-                sess, error = create_session_and_login(username_to_use, password_to_use)
+                creds = user_credentials[session_id]
+                sess, error = create_session_and_login(creds['username'], creds['password'])
                 
                 if not error and sess:
                     user_sessions[session_id] = sess
-                    # Ensure credentials are saved for this session
-                    if session_id not in user_credentials:
-                        user_credentials[session_id] = {'username': username_to_use, 'password': password_to_use}
-                    
                     session_timestamps[session_id] = datetime.now()
                     return True
             except Exception as e:
@@ -309,9 +220,23 @@ def validate_session(session_id):
 def not_found(e):
     if request.path.startswith('/api/'):
         return jsonify({'error': 'API endpoint not found'}), 404
+    return render_template('index.html')
+
+@app.errorhandler(500)
+def internal_error(e):
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Internal server error'}), 500
+    return render_template('index.html')
+
+@app.route('/')
+@app.route('/overview')
+@app.route('/gpa')
+@app.route('/report-card')
+def index():
+    return render_template('index.html')
+
 @app.route('/api/login', methods=['POST'])
 def login():
-    global saved_username, saved_password
     try:
         data = request.json
         username = data.get('username')
@@ -329,10 +254,6 @@ def login():
         user_sessions[session_id] = sess
         user_credentials[session_id] = {'username': username, 'password': password}
         session_timestamps[session_id] = datetime.now()
-        
-        # Save to global variables for auto-relogin
-        saved_username = username
-        saved_password = password
         
         return jsonify({'session_id': session_id, 'message': 'Login successful'})
     except Exception as e:
