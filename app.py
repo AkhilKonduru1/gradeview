@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify, session
 from flask_cors import CORS
 import requests
+import os
 from bs4 import BeautifulSoup
 import re
 import secrets
@@ -10,7 +11,14 @@ from datetime import datetime, timedelta
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
-CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"], supports_credentials=True)
+
+# Update CORS to allow environment variable or default to localhost
+allowed_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+env_origin = os.environ.get('FRONTEND_URL')
+if env_origin:
+    allowed_origins.append(env_origin)
+
+CORS(app, origins=allowed_origins, supports_credentials=True)
 
 BASE_URL = "https://lis-hac.eschoolplus.powerschool.com"
 
@@ -233,6 +241,8 @@ def get_assignments_for_class(sess, course_index):
     
     return assignments
 
+# WARNING: Global variables like these will NOT persist in serverless environments (like Vercel)
+# or across multiple workers in Gunicorn. For production, use a database (Redis, SQL, etc.)
 user_sessions = {}
 user_credentials = {}
 saved_username = None
@@ -323,21 +333,6 @@ def login():
         # Save to global variables for auto-relogin
         saved_username = username
         saved_password = password
-        
-        return jsonify({'session_id': session_id, 'message': 'Login successful'})
-        
-        if not username or not password:
-            return jsonify({'error': 'Username and password required'}), 400
-        
-        sess, error = create_session_and_login(username, password)
-        
-        if error:
-            return jsonify({'error': error}), 401
-        
-        session_id = secrets.token_hex(16)
-        user_sessions[session_id] = sess
-        user_credentials[session_id] = {'username': username, 'password': password}
-        session_timestamps[session_id] = datetime.now()
         
         return jsonify({'session_id': session_id, 'message': 'Login successful'})
     except Exception as e:
