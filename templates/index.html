@@ -1249,44 +1249,33 @@
             // Deep copy assignments
             whatIfCurrentAssignments = JSON.parse(JSON.stringify(course.assignments || []));
             
-            // Parse scores and max points
+            // Ensure earned/max are set (backend now provides them, but fallback just in case)
             whatIfCurrentAssignments.forEach(a => {
-                // Default
-                a.earned = 0;
-                a.max = 100;
-                
-                if (a.score) {
-                    const parts = a.score.split('/');
-                    if (parts.length === 2) {
-                        a.earned = parseFloat(parts[0]);
-                        a.max = parseFloat(parts[1]);
-                    } else {
-                        const val = parseFloat(a.score);
-                        if (!isNaN(val)) {
-                            a.earned = val;
-                            // If score is > 100, maybe max is more? Assume 100 for now unless we know better.
-                            // Or maybe it's just a percentage.
-                            a.max = 100; 
-                        }
-                    }
-                }
+                if (a.earned === undefined || a.earned === null) a.earned = 0;
+                if (a.max_points === undefined || a.max_points === null) a.max_points = 100;
+                // Map max_points to max for frontend consistency
+                a.max = a.max_points;
             });
             
-            // Extract categories
-            const categories = new Set();
-            whatIfCurrentAssignments.forEach(a => {
-                if (a.category) categories.add(a.category);
-            });
-            
-            // Initialize weights
+            // Initialize weights from backend if available
             whatIfCategories = {};
-            const catArray = Array.from(categories);
-            const defaultWeight = catArray.length > 0 ? Math.floor(100 / catArray.length) : 100;
-            let remainder = 100 - (defaultWeight * catArray.length);
-            
-            catArray.forEach((cat, idx) => {
-                whatIfCategories[cat] = defaultWeight + (idx === 0 ? remainder : 0);
-            });
+            if (course.weights && Object.keys(course.weights).length > 0) {
+                whatIfCategories = JSON.parse(JSON.stringify(course.weights));
+            } else {
+                // Fallback to equal distribution if no weights found
+                const categories = new Set();
+                whatIfCurrentAssignments.forEach(a => {
+                    if (a.category) categories.add(a.category);
+                });
+                
+                const catArray = Array.from(categories);
+                const defaultWeight = catArray.length > 0 ? Math.floor(100 / catArray.length) : 100;
+                let remainder = 100 - (defaultWeight * catArray.length);
+                
+                catArray.forEach((cat, idx) => {
+                    whatIfCategories[cat] = defaultWeight + (idx === 0 ? remainder : 0);
+                });
+            }
             
             renderCategoryWeights();
             renderWhatIfAssignments();

@@ -59,10 +59,49 @@ def calculate_gpa_for_grade(grade_percent, course_name):
     
     return max(0, min(gpa, base_gpa))
 
+def get_category_weights_internal(cls):
+    weights = {}
+    tables = cls.find_all('table', class_='sg-asp-table')
+    
+    for table in tables:
+        header_row = table.find('tr', class_='sg-asp-table-header-row')
+        if header_row:
+            headers = [th.get_text(strip=True) for th in header_row.find_all(['th', 'td'])]
+            # Look for Category and Weight headers
+            if any('Category' in h for h in headers) and any('Weight' in h for h in headers):
+                rows = table.find_all('tr', class_='sg-asp-table-data-row')
+                for row in rows:
+                    cells = row.find_all('td')
+                    if len(cells) >= 2:
+                        cat_name = cells[0].get_text(strip=True)
+                        weight_text = cells[1].get_text(strip=True)
+                        try:
+                            # Remove % and convert to float
+                            weight_val = float(weight_text.replace('%', '').strip())
+                            weights[cat_name] = weight_val
+                        except ValueError:
+                            pass
+                return weights
+    return {}
+
 def get_assignments_for_class_internal(cls):
     assignments = []
     
-    assignment_table = cls.find('table', class_='sg-asp-table')
+    # Try to find the assignments table specifically
+    tables = cls.find_all('table', class_='sg-asp-table')
+    assignment_table = None
+    
+    for table in tables:
+        header_row = table.find('tr', class_='sg-asp-table-header-row')
+        if header_row:
+            headers = [th.get_text(strip=True) for th in header_row.find_all(['th', 'td'])]
+            if any('Assignment' in h for h in headers) and any('Score' in h for h in headers):
+                assignment_table = table
+                break
+    
+    # Fallback to first table if specific one not found
+    if not assignment_table and tables:
+        assignment_table = tables[0]
     
     if assignment_table:
         rows = assignment_table.find_all('tr', class_='sg-asp-table-data-row')
@@ -74,14 +113,35 @@ def get_assignments_for_class_internal(cls):
                 date_assigned = cells[1].get_text(strip=True)
                 assignment_name = cells[2].get_text(strip=True)
                 category = cells[3].get_text(strip=True)
-                score = cells[4].get_text(strip=True) if len(cells) > 4 else 'N/A'
+                score_text = cells[4].get_text(strip=True) if len(cells) > 4 else 'N/A'
                 
+                earned = None
+                max_points = 100.0
+                
+                if '/' in score_text:
+                    try:
+                        parts = score_text.split('/')
+                        earned = float(parts[0])
+                        max_points = float(parts[1])
+                    except ValueError:
+                        pass
+                elif score_text and score_text != 'N/A':
+                    try:
+                        # Extract number from string like "95.00" or "95%"
+                        match = re.search(r'(\d+\.?\d*)', score_text)
+                        if match:
+                            earned = float(match.group(1))
+                    except ValueError:
+                        pass
+
                 assignments.append({
                     'date_due': date_due,
                     'date_assigned': date_assigned,
                     'name': assignment_name,
                     'category': category,
-                    'score': score
+                    'score': score_text,
+                    'earned': earned,
+                    'max_points': max_points
                 })
     
     return assignments
@@ -119,6 +179,7 @@ def get_grades_data(sess):
                 grade_text = 'No Grade Yet'
             
             assignments = get_assignments_for_class_internal(cls)
+            weights = get_category_weights_internal(cls)
             
             grades.append({
                 'name': course_name,
@@ -126,7 +187,8 @@ def get_grades_data(sess):
                 'numeric_grade': numeric_grade,
                 'gpa': course_gpa,
                 'course_id': str(idx),
-                'assignments': assignments
+                'assignments': assignments,
+                'weights': weights
             })
     
     return grades
