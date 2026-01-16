@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --accent: #635bff;
@@ -653,6 +654,11 @@
                 <div id="cumulativeGPAValue" class="cumulative-value">0.00</div>
                 <div style="font-size: 14px; opacity: 0.7;">Based on active selections + grades so far this year</div>
             </div>
+
+            <div id="gpaGraphContainer" class="hidden" style="margin-top: 40px; background: white; padding: 24px; border-radius: 12px; border: 1px solid var(--border); box-shadow: var(--shadow-sm);">
+                <h3 style="margin-bottom: 20px; font-size: 16px;">GPA Trend per Cycle</h3>
+                <canvas id="gpaCycleChart" style="max-height: 300px;"></canvas>
+            </div>
         </section>
 
         <section id="reportCardContainer" class="dash-section hidden">
@@ -846,10 +852,39 @@
             }
         }
 
+        async function fetchWithAuth(url, options = {}) {
+            if (!options.headers) options.headers = {};
+            options.headers['X-Session-ID'] = sessionId;
+
+            let response = await fetch(url, options);
+
+            if (response.status === 401) {
+                const cachedUser = localStorage.getItem('cachedUsername');
+                const cachedPass = localStorage.getItem('cachedPassword');
+
+                if (cachedUser && cachedPass) {
+                    try {
+                        console.log("Session expired, attempting silent re-authentication...");
+                        const newSessionId = await performLogin(cachedUser, cachedPass);
+                        sessionId = newSessionId;
+                        localStorage.setItem('sessionId', sessionId);
+                        
+                        // Update header with new session ID
+                        options.headers['X-Session-ID'] = sessionId;
+                        
+                        // Retry original request
+                        response = await fetch(url, options);
+                    } catch (e) {
+                        console.error("Auto-login failed:", e);
+                    }
+                }
+            }
+            
+            return response;
+        }
+
         async function loadGrades() {
-            const response = await fetch('/api/grades', {
-                headers: { 'X-Session-ID': sessionId }
-            });
+            const response = await fetchWithAuth('/api/grades');
 
             const data = await response.json();
             if (!response.ok) {
@@ -1014,6 +1049,111 @@
             performLocalGPACalculation(normalizedSelected, excludedCourses);
         }
 
+        let gpaChartInstance = null;
+        
+        function renderGPAGraph(labels, dataPoints) {
+            const ctx = document.getElementById('gpaCycleChart').getContext('2d');
+            const container = document.getElementById('gpaGraphContainer');
+            
+            if (labels.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+            container.classList.remove('hidden');
+
+            if (gpaChartInstance) {
+                gpaChartInstance.destroy();
+            }
+
+            // Create gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, 'rgba(99, 91, 255, 0.4)');
+            gradient.addColorStop(1, 'rgba(99, 91, 255, 0.0)');
+
+            gpaChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Cycle GPA',
+                        data: dataPoints,
+                        borderColor: '#635bff',
+                        backgroundColor: gradient,
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3,
+                        pointBackgroundColor: '#ffffff',
+                        pointBorderColor: '#635bff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            min: 3.5, // Adjust based on data usually
+                            max: 6.0,
+                            ticks: { stepSize: 0.5 }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return 'GPA: ' + context.parsed.y.toFixed(2);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderReportCardInternal(cyclesDetail, overallGPA) {
+            const contentDiv = document.getElementById('reportCardContent');
+            const overallGPADiv = document.getElementById('overallReportGPA');
+            
+            if (cyclesDetail && cyclesDetail.length > 0) {
+                let html = '';
+                cyclesDetail.forEach((cycle, idx) => {
+                    html += `
+                        <div style="background: white; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; overflow: hidden;">
+                            <div style="padding: 16px 24px; background: #f8fafc; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                                <h3 style="font-size: 16px; font-weight: 600;">${cycle.cycle_name}</h3>
+                                <span style="font-weight: 700; color: var(--accent);">Avg GPA ${cycle.average_gpa.toFixed(2)}</span>
+                            </div>
+                            <div style="padding: 16px 24px;">
+                    `;
+                    cycle.courses.forEach(course => {
+                        html += `
+                            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border);">
+                                <div>
+                                    <div style="font-weight: 600;">${course.course_name}</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-weight: 700; color: var(--text-main);">${course.grade}</div>
+                                    <div style="font-size: 12px; color: var(--text-muted);">GPA ${course.gpa.toFixed(2)}</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div></div>';
+                });
+                contentDiv.innerHTML = html;
+                
+                const overallGpaValue = typeof overallGPA === 'number' ? overallGPA.toFixed(2) : '--';
+                document.getElementById('overallReportGPAValue').textContent = overallGpaValue;
+                overallGPADiv.classList.remove('hidden');
+            } else {
+                contentDiv.innerHTML = '<p style="text-align:center; padding: 24px;">No report card data available or all courses excluded.</p>';
+            }
+        }
+
         function performLocalGPACalculation(selectedCourseIds, excludedCourseNames) {
             let totalGPA = 0;
             let totalCount = 0;
@@ -1077,6 +1217,33 @@
             const cumulativeGPA = totalCount > 0 ? (totalGPA / totalCount) : 0;
             const gpaValue = cumulativeGPA.toFixed(2);
             
+            // Prepare Data for Graph and Report Card Update
+            // Filter pastCyclesDetail to only included cycles (already filtered by excludedCourseNames inside the loop logic)
+            // But we need to make sure we don't double count if we run this multiple times
+            // The logic above creates a fresh pastCyclesDetail array each time.
+
+            const graphLabels = pastCyclesDetail.map(c => c.cycle_name);
+            const graphData = pastCyclesDetail.map(c => c.average_gpa);
+            
+            renderGPAGraph(graphLabels, graphData);
+            
+            // Re-render Report Card section with the locally calculated (filtered) data
+            // We need to calculate an overall GPA for just the Report Card section (excluding Current Courses typically, 
+            // or should it match Cumulative? User said "in report card section... calculated should be there".
+            // The Report Card section specifically shows Past Cycles. So we should sum only Past Cycles GPAs.
+            
+            let reportCardTotalGPA = 0;
+            let reportCardTotalCount = 0;
+            pastCyclesDetail.forEach(c => {
+                 c.courses.forEach(course => {
+                     reportCardTotalGPA += course.gpa;
+                     reportCardTotalCount++;
+                 });
+            });
+            const reportCardOverallGPA = reportCardTotalCount > 0 ? (reportCardTotalGPA / reportCardTotalCount) : 0;
+            
+            renderReportCardInternal(pastCyclesDetail, reportCardOverallGPA);
+
             // Update UI
             const navGPA = document.getElementById('navCurrentGPA');
             if (navGPA) navGPA.textContent = gpaValue;
@@ -1200,14 +1367,16 @@
             const loadingDiv = document.getElementById('reportCardLoading');
             const contentDiv = document.getElementById('reportCardContent');
             const overallGPADiv = document.getElementById('overallReportGPA');
-            loadingDiv.classList.remove('hidden');
-            contentDiv.innerHTML = '';
-            overallGPADiv.classList.add('hidden');
+            
+            // Only show loading if we don't have data yet
+            if (!reportCardData) {
+                loadingDiv.classList.remove('hidden');
+                contentDiv.innerHTML = '';
+                overallGPADiv.classList.add('hidden');
+            }
             
             try {
-                const response = await fetch('/api/report-card', {
-                    headers: { 'X-Session-ID': sessionId }
-                });
+                const response = await fetchWithAuth('/api/report-card');
                 const data = await response.json();
                 
                 if (!response.ok) {
@@ -1217,44 +1386,16 @@
                 loadingDiv.classList.add('hidden');
                 reportCardData = data;
                 
-                if (data.cycles && data.cycles.length > 0) {
-                    let html = '';
-                    data.cycles.forEach((cycle, idx) => {
-                        html += `
-                            <div style="background: white; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; overflow: hidden;">
-                                <div style="padding: 16px 24px; background: #f8fafc; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-                                    <h3 style="font-size: 16px; font-weight: 600;">${cycle.cycle_name}</h3>
-                                    <span style="font-weight: 700; color: var(--accent);">Avg GPA ${cycle.average_gpa.toFixed(2)}</span>
-                                </div>
-                                <div style="padding: 16px 24px;">
-                        `;
-                        cycle.courses.forEach(course => {
-                            html += `
-                                <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border);">
-                                    <div>
-                                        <div style="font-weight: 600;">${course.course}</div>
-                                        <div style="font-size: 12px; color: var(--text-muted);">${course.course_code}</div>
-                                    </div>
-                                    <div style="text-align: right;">
-                                        <div style="font-weight: 700; color: var(--text-main);">${course.grade}</div>
-                                        <div style="font-size: 12px; color: var(--text-muted);">GPA ${course.gpa.toFixed(2)}</div>
-                                    </div>
-                                </div>
-                            `;
-                        });
-                        html += '</div></div>';
-                    });
-                    contentDiv.innerHTML = html;
-                    
-                    const overallGpaValue = typeof data.overall_gpa === 'number' ? data.overall_gpa.toFixed(2) : '--';
-                    document.getElementById('overallReportGPAValue').textContent = overallGpaValue;
-                    overallGPADiv.classList.remove('hidden');
-                } else {
-                    contentDiv.innerHTML = '<p style="text-align:center; padding: 24px;">No report card data available.</p>';
-                }
+                // Immediately calculate/render using local logic to respect exclusions
+                // We trigger the main calculation which updates everything
+                await autoCalculateGPA();
+                
             } catch (error) {
+                console.error(error);
                 loadingDiv.classList.add('hidden');
-                contentDiv.innerHTML = `<p style="text-align:center; color: var(--danger); padding: 24px;">Error: ${error.message}</p>`;
+                if (!reportCardData) {
+                    contentDiv.innerHTML = `<p style="text-align:center; color: var(--danger); padding: 24px;">Error: ${error.message}</p>`;
+                }
             }
         }
     </script>
