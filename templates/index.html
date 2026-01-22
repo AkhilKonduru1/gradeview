@@ -712,6 +712,7 @@
     <script>
         let sessionId = localStorage.getItem('sessionId') || null;
         let allGradesData = [];
+        let latestCycleId = null; // Store the official current cycle ID
         let reportCardData = null;
 
         const routes = {
@@ -787,7 +788,20 @@
 
         async function handleAuthenticatedState() {
             // Load current grades first so user can enter immediately
+            // We pass nothing to loadGrades to get the 'default/current' cycle
             await loadGrades();
+            
+            // Fire off background tasks immediately
+            // 1. Load Report Card
+            loadReportCard().then(() => {
+                console.log("Background: Report card loaded");
+                autoCalculateGPA();
+            });
+
+            // 2. Start prefetching other cycles if we have the list
+            if (gradesCache[latestCycleId] && gradesCache[latestCycleId].cycles) {
+                 startPrefetching(gradesCache[latestCycleId].cycles, latestCycleId);
+            }
             
             document.getElementById('loginBox').classList.add('hidden');
             document.getElementById('dashboardShell').classList.remove('hidden');
@@ -795,12 +809,6 @@
             const path = window.location.pathname;
             const targetId = routes[path] || 'overviewSection';
             activateSection(targetId, false);
-
-            // Load report card in background
-            loadReportCard().then(() => {
-                console.log("Report card loaded in background");
-                autoCalculateGPA(); // Recalculate with new data
-            }).catch(err => console.error("Background report card load failed", err));
         }
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -867,14 +875,66 @@
             const btn = document.getElementById('refreshBtn');
             const originalText = btn.textContent;
             btn.disabled = true;
-            btn.textContent = 'Refreshing...';
+            btn.textContent = 'Refreshing All Cycles...';
             
+            // Show toast or overlay
+            const toast = document.createElement('div');
+            toast.style.cssText = 'position: fixed; bottom: 24px; right: 24px; background: #0a2540; color: white; padding: 16px 24px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 9999; animation: fadeIn 0.3s ease-out;';
+            toast.textContent = 'Re-authenticating and fetching fresh data for all cycles...';
+            document.body.appendChild(toast);
+
             try {
-                await Promise.all([loadGrades(), loadReportCard()]);
-                await autoCalculateGPA();
-                alert('Data refreshed successfully');
+                // Use the new bulk refresh endpoint
+                // We pass cached credentials just in case the session is dead
+                const cachedUser = localStorage.getItem('cachedUsername');
+                const cachedPass = localStorage.getItem('cachedPassword');
+                
+                const response = await fetch('/api/refresh_all_cycles', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId },
+                    body: JSON.stringify({ username: cachedUser, password: cachedPass })
+                });
+
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    if (response.status === 401) throw new Error('Session expired');
+                    throw new Error(data.error || 'Refresh failed');
+                }
+                
+                // Update Session ID if it changed
+                if (data.session_id) {
+                    sessionId = data.session_id;
+                    localStorage.setItem('sessionId', sessionId);
+                }
+
+                toast.textContent = 'Processing data...';
+
+                // Update Cache with new bulk data
+                if (data.data) {
+                    Object.keys(data.data).forEach(key => {
+                        gradesCache[key] = data.data[key];
+                    });
+                    
+                    // Update UI with current cycle (or whatever was returned as current)
+                    const currentCycleKey = data.data[Object.keys(data.data)[0]].current_cycle;
+                    if (gradesCache[currentCycleKey]) {
+                        updateUIWithGradesData(gradesCache[currentCycleKey]);
+                    }
+                }
+                
+                // Also reload report card for safety
+                await loadReportCard();
+                
+                toast.style.background = '#10b981';
+                toast.textContent = '✓ All cycles refreshed successfully';
+                setTimeout(() => toast.remove(), 3000);
+
             } catch (error) {
-                alert('Failed to refresh data: ' + error.message);
+                toast.style.background = '#df1b41';
+                toast.textContent = 'Error: ' + error.message;
+                setTimeout(() => toast.remove(), 5000);
+                
                 if (error.message.includes('Session expired')) {
                     logout();
                 }
@@ -964,9 +1024,12 @@
             // Cache the result
             if (data.current_cycle) {
                 gradesCache[data.current_cycle] = data;
-            } else if (!cycle) {
-                 // Try to infer current cycle from data if possible, or just don't cache deeply if we can't key it
-                 // But wait, the API returns 'current_cycle' usually.
+                
+                // If this was the initial load (no cycle param), set this as the source of truth for "Live"
+                if (!cycle || !latestCycleId) {
+                    latestCycleId = data.current_cycle;
+                    console.log("Set Latest Cycle ID:", latestCycleId);
+                }
             }
 
             updateUIWithGradesData(data);
@@ -1011,65 +1074,43 @@
         }
         
         async function startPrefetching(allCycles, currentCycle) {
-            console.log("Starting strictly ordered prefetch. Current:", currentCycle);
+            // ... strict ordered prefetch logic optimized out in favor of backend global refresh if needed, 
+            // but kept for initial load smoothness individually . 
+            // We'll keep the existing logic as fallback.
             
-            // 1. Identify valid numeric cycles to establish strict 1->6 order
-            const sortedCycles = [...allCycles].sort((a, b) => {
+            console.log("Starting background prefetch. Current:", currentCycle);
+            // ... (rest of prefetch logic similar to before but minimal changes needed)
+             const sortedCycles = [...allCycles].sort((a, b) => {
                 const getNum = (str) => parseInt((str.match(/\d+/) || ['0'])[0], 10);
                 return getNum(a.text) - getNum(b.text);
             });
 
-            // 2. Build queue: [1, 2, 3, 4, 5, 6] excluding current and cached
             prefetchQueue = sortedCycles
                 .map(c => c.value)
                 .filter(val => val !== currentCycle && !gradesCache[val]);
             
-            console.log("Prefetch Queue:", prefetchQueue);
-
-            if (isPrefetching) {
-                console.log("Prefetcher is already active.");
-                return;
+            if (!isPrefetching) {
+                isPrefetching = true;
+                await processPrefetchQueue();
             }
-            
-            isPrefetching = true;
-            await processPrefetchQueue();
         }
         
         async function processPrefetchQueue() {
             if (prefetchQueue.length === 0) {
                 isPrefetching = false;
-                console.log("All cycles successfully prefetched.");
                 return;
             }
-            
-            // Strictly sequential: Take first item, wait for it, then next.
             const nextCycle = prefetchQueue.shift();
-            
-            // Double-check cache in case user navigated to it manually in the meantime
-            if (gradesCache[nextCycle]) {
-                return processPrefetchQueue();
-            }
+            if (gradesCache[nextCycle]) return processPrefetchQueue();
 
-            console.log(`Fetching Cycle: ${nextCycle}...`);
-            
             try {
                  const url = `/api/grades?cycle=${encodeURIComponent(nextCycle)}`;
                  const response = await fetchWithAuth(url);
-                 
                  if (response.ok) {
                      const data = await response.json();
-                     if (data.grades) {
-                         gradesCache[nextCycle] = data;
-                         console.log(`✔ Cached Cycle: ${nextCycle}`);
-                     }
-                 } else {
-                     console.warn(`✘ Failed to prefetch ${nextCycle}: ${response.status}`);
+                     if (data.grades) gradesCache[nextCycle] = data;
                  }
-            } catch (err) {
-                console.error(`✘ Error prefetching ${nextCycle}:`, err);
-            }
-            
-            // Immediate recursive call for next item (no artificial delay needed)
+            } catch (err) { console.error(err); }
             return processPrefetchQueue();
         }
 
@@ -1177,62 +1218,29 @@
         }
 
         function prepareGPASection() {
+            // "Active Courses" section removed as requested.
+            // We just clear the container to be safe.
             const checkboxContainer = document.getElementById('courseCheckboxes');
-            checkboxContainer.innerHTML = '';
-            const savedCourses = JSON.parse(localStorage.getItem('selectedCourses') || '[]');
-            allGradesData.forEach(course => {
-                if (course.gpa !== null) {
-                    const courseIdKey = String(course.course_id);
-                    const isChecked = savedCourses.length === 0 || savedCourses.includes(courseIdKey);
-                    const div = document.createElement('div');
-                    div.className = 'course-checkbox';
-                    div.innerHTML = `
-                        <input type="checkbox" id="course-${course.course_id}" value="${courseIdKey}" ${isChecked ? 'checked' : ''} onchange="autoCalculateGPA()">
-                        <div style="flex: 1;">
-                            <div style="font-weight: 600;">${course.name}</div>
-                            <div style="color: var(--text-muted); font-size: 13px;">Current Grade: ${course.grade} (GPA: ${course.gpa})</div>
-                        </div>
-                    `;
-                    checkboxContainer.appendChild(div);
-                }
+            if (checkboxContainer) checkboxContainer.innerHTML = '';
+            
+            // Hide the title for Select Active Courses if possible or repurpose
+            const h3s = document.querySelectorAll('.gpa-panel h3');
+            h3s.forEach(h3 => {
+                 if (h3.textContent.includes('Select Active Courses')) {
+                     h3.style.display = 'none';
+                 }
             });
         }
 
         async function autoCalculateGPA() {
-            // Calculate locally using allGradesData and reportCardData
-            const checkboxNodeList = document.querySelectorAll('#courseCheckboxes input[type="checkbox"]');
-            const selectedCourses = [];
-            const savedCourses = JSON.parse(localStorage.getItem('selectedCourses') || '[]');
-
-            if (checkboxNodeList.length) {
-                checkboxNodeList.forEach(box => {
-                    if (box.checked) {
-                        selectedCourses.push(box.value);
-                    }
-                });
-                localStorage.setItem('selectedCourses', JSON.stringify(selectedCourses));
-            } else {
-                allGradesData.forEach(course => {
-                    const courseIdKey = String(course.course_id);
-                    if (course.gpa !== null && (savedCourses.length === 0 || savedCourses.includes(courseIdKey))) {
-                        selectedCourses.push(courseIdKey);
-                    }
-                });
-            }
-
-            const normalizedSelected = selectedCourses.map(id => {
-                const numeric = Number(id);
-                return Number.isNaN(numeric) ? id : numeric;
-            });
-            
             const excludedCourses = JSON.parse(localStorage.getItem('excludedCourses') || '[]');
-            
-            performLocalGPACalculation(normalizedSelected, excludedCourses);
+            performLocalGPACalculation(null, excludedCourses);
         }
 
         let gpaChartInstance = null;
         
         function renderGPAGraph(labels, dataPoints) {
+            // ... (keep graph code same as it is purely presentation)
             const ctx = document.getElementById('gpaCycleChart').getContext('2d');
             const container = document.getElementById('gpaGraphContainer');
             
@@ -1306,15 +1314,19 @@
                         <div style="background: white; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; overflow: hidden;">
                             <div style="padding: 16px 24px; background: #f8fafc; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
                                 <h3 style="font-size: 16px; font-weight: 600;">${cycle.cycle_name}</h3>
-                                <span style="font-weight: 700; color: var(--accent);">Avg GPA ${cycle.average_gpa.toFixed(2)}</span>
+                                <span style="font-weight: 700; color: var(--accent);">Avg GPA ${cycle.display_gpa.toFixed(2)}</span>
                             </div>
                             <div style="padding: 16px 24px;">
                     `;
-                    cycle.courses.forEach(course => {
+                    cycle.display_courses.forEach(course => {
+                        const isExcluded = course.is_excluded;
+                        const opacity = isExcluded ? '0.5' : '1';
+                        const textDecor = isExcluded ? 'line-through' : 'none';
+                        
                         html += `
-                            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border);">
+                            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); opacity: ${opacity};">
                                 <div>
-                                    <div style="font-weight: 600;">${course.course_name}</div>
+                                    <div style="font-weight: 600; text-decoration: ${textDecor};">${course.course_name}</div>
                                 </div>
                                 <div style="text-align: right;">
                                     <div style="font-weight: 700; color: var(--text-main);">${course.grade}</div>
@@ -1327,105 +1339,189 @@
                 });
                 contentDiv.innerHTML = html;
                 
+                // Show the CALCULATED overall GPA, not the display sum
                 const overallGpaValue = typeof overallGPA === 'number' ? overallGPA.toFixed(2) : '--';
                 document.getElementById('overallReportGPAValue').textContent = overallGpaValue;
                 overallGPADiv.classList.remove('hidden');
             } else {
-                contentDiv.innerHTML = '<p style="text-align:center; padding: 24px;">No report card data available or all courses excluded.</p>';
+                contentDiv.innerHTML = '<p style="text-align:center; padding: 24px;">No report card data available.</p>';
             }
         }
 
-        function performLocalGPACalculation(selectedCourseIds, excludedCourseNames) {
+        function cleanCourseName(name) {
+            if (!name) return "";
+            return name.replace(/^\d+[A-Za-z]*\s*-\s*\d+\s+/, '').trim();
+        }
+
+        function performLocalGPACalculation(unused, excludedCourseNames) {
             let totalGPA = 0;
             let totalCount = 0;
             
-            // 1. Current Courses
-            allGradesData.forEach(course => {
-                // Check if course is selected (using string comparison for IDs)
-                if (selectedCourseIds.includes(String(course.course_id)) || selectedCourseIds.includes(course.course_id)) {
-                    if (course.gpa !== null) {
+            let pastCyclesCount = 0;
+            let allCyclesForReportList = [];
+            
+            let pastCyclesDetailForGraph = [];
+            let pastCyclesDetailForReport = []; 
+            let allUniqueCourses = new Set();
+            
+            let reportCardTotalGPA = 0;
+            let reportCardTotalCount = 0;
+
+            // --- 1. CURRENT LIVE CYCLE ---
+            if (latestCycleId && gradesCache[latestCycleId]) {
+                 const currentData = gradesCache[latestCycleId];
+                 
+                 if (currentData.grades && currentData.grades.length > 0) {
+                     let currentCycleSum = 0;
+                     let currentCycleCount = 0;
+                     let currentDisplayCourses = [];
+
+                     currentData.grades.forEach(course => {
+                        const cleanName = cleanCourseName(course.name);
+                        if (cleanName) allUniqueCourses.add(cleanName);
+                        
+                        const isExcluded = excludedCourseNames.includes(cleanName);
+
+                        currentDisplayCourses.push({
+                            course_name: cleanName,
+                            grade: course.grade,
+                            gpa: course.gpa,
+                            is_excluded: isExcluded
+                        });
+
+                        if (!isExcluded && course.gpa !== null) {
+                            totalGPA += course.gpa;
+                            totalCount++;
+                            currentCycleSum += course.gpa;
+                            currentCycleCount++;
+                        }
+                     });
+                     
+                     const currentAvg = currentCycleCount > 0 ? (currentCycleSum / currentCycleCount) : 0;
+                     
+                     // Determine name
+                     let cycleDisplayName = "Current Cycle";
+                     if (currentData.cycles) {
+                         const match = currentData.cycles.find(c => c.value === latestCycleId);
+                         if (match) cycleDisplayName = `${match.text} (Live)`;
+                     }
+
+                     allCyclesForReportList.push({
+                         cycle_name: cycleDisplayName,
+                         display_courses: currentDisplayCourses,
+                         display_gpa: currentAvg,
+                         is_current: true
+                     });
+                     
+                 }
+            } else if (allGradesData.length > 0) {
+                 allGradesData.forEach(course => {
+                    const cleanName = cleanCourseName(course.name);
+                    allUniqueCourses.add(cleanName);
+                    if (!excludedCourseNames.includes(cleanName) && course.gpa !== null) {
                         totalGPA += course.gpa;
                         totalCount++;
                     }
-                }
-            });
+                 });
+            }
 
-            // 2. Past Cycles (if available)
-            let pastCyclesCount = 0;
-            let pastCyclesDetail = [];
-            let allUniqueCourses = new Set();
 
+            // --- 2. PAST CYCLES (REPORT CARD) ---
             if (reportCardData && reportCardData.cycles) {
                 reportCardData.cycles.forEach(cycle => {
-                    let cycleCourses = [];
+                    
+                    let isOverlap = false;
+                    if (latestCycleId) {
+                        try {
+                            const latestNum = parseInt(latestCycleId.split('-')[0]); 
+                            const reportNum = parseInt(cycle.cycle_name.replace(/\D/g, ''));
+                            if (latestNum === reportNum) {
+                                isOverlap = true;
+                            }
+                        } catch(e) {}
+                    }
+
                     let cycleTotalGPA = 0;
                     let cycleCourseCount = 0;
+                    let displayCourses = []; 
 
                     cycle.courses.forEach(course => {
-                        allUniqueCourses.add(course.course);
+                        const cleanName = cleanCourseName(course.course);
+                        allUniqueCourses.add(cleanName);
                         
-                        if (!excludedCourseNames.includes(course.course)) {
-                            if (course.gpa !== null) {
+                        const isExcluded = excludedCourseNames.includes(cleanName);
+                        
+                        displayCourses.push({
+                            course_name: cleanName,
+                            grade: course.grade,
+                            gpa: course.gpa,
+                            is_excluded: isExcluded
+                        });
+
+                        if (!isExcluded && course.gpa !== null) {
+                            reportCardTotalGPA += course.gpa;
+                            reportCardTotalCount++;
+                            
+                            if (!isOverlap) {
                                 cycleTotalGPA += course.gpa;
                                 cycleCourseCount++;
-                                
-                                cycleCourses.push({
-                                    course_name: course.course,
-                                    grade: course.grade,
-                                    gpa: course.gpa
-                                });
                             }
                         }
                     });
 
-                    if (cycleCourseCount > 0) {
-                        const cycleAvg = cycleTotalGPA / cycleCourseCount;
-                        // Weight each course individually, not just the cycle average
-                        totalGPA += cycleTotalGPA;
-                        totalCount += cycleCourseCount;
-                        
-                        pastCyclesCount++;
-                        pastCyclesDetail.push({
+                    if (cycle.courses.length > 0) {
+                         let displaySum = 0; let displayCnt = 0;
+                         displayCourses.forEach(c => {
+                             // Use the is_excluded flag we just calculated logic for
+                             if (!c.is_excluded && c.gpa !== null) {
+                                 displaySum += c.gpa;
+                                 displayCnt++;
+                             }
+                         });
+                         
+                         const cycleAvg = displayCnt > 0 ? (displaySum / displayCnt) : 0;
+                         
+                         if (!isOverlap && cycleCourseCount > 0) {
+                            totalGPA += cycleTotalGPA;
+                            totalCount += cycleCourseCount;
+                            pastCyclesCount++;
+                         }
+
+                        pastCyclesDetailForGraph.push({
                             cycle_name: cycle.cycle_name,
-                            courses: cycleCourses,
-                            average_gpa: cycleAvg
+                            average_gpa: cycleAvg,
+                            is_overlap: isOverlap
+                        });
+                        
+                        pastCyclesDetailForReport.push({
+                            cycle_name: cycle.cycle_name,
+                            display_courses: displayCourses,
+                            display_gpa: cycleAvg 
+                        });
+                        
+                        // Add to main list
+                        allCyclesForReportList.push({
+                            cycle_name: cycle.cycle_name,
+                            display_courses: displayCourses,
+                            display_gpa: cycleAvg,
+                            is_current: false
                         });
                     }
                 });
             }
 
-            // Calculate Cumulative
+            // --- 3. FINALIZE METRICS ---
             const cumulativeGPA = totalCount > 0 ? (totalGPA / totalCount) : 0;
             const gpaValue = cumulativeGPA.toFixed(2);
             
-            // Prepare Data for Graph and Report Card Update
-            // Filter pastCyclesDetail to only included cycles (already filtered by excludedCourseNames inside the loop logic)
-            // But we need to make sure we don't double count if we run this multiple times
-            // The logic above creates a fresh pastCyclesDetail array each time.
+            const reportCardOverallGPA = reportCardTotalCount > 0 ? (reportCardTotalGPA / reportCardTotalCount) : 0;
 
-            const graphLabels = pastCyclesDetail.map(c => c.cycle_name);
-            const graphData = pastCyclesDetail.map(c => c.average_gpa);
-            
+            const graphLabels = pastCyclesDetailForGraph.map(c => c.cycle_name);
+            const graphData = pastCyclesDetailForGraph.map(c => c.average_gpa);
             renderGPAGraph(graphLabels, graphData);
             
-            // Re-render Report Card section with the locally calculated (filtered) data
-            // We need to calculate an overall GPA for just the Report Card section (excluding Current Courses typically, 
-            // or should it match Cumulative? User said "in report card section... calculated should be there".
-            // The Report Card section specifically shows Past Cycles. So we should sum only Past Cycles GPAs.
-            
-            let reportCardTotalGPA = 0;
-            let reportCardTotalCount = 0;
-            pastCyclesDetail.forEach(c => {
-                 c.courses.forEach(course => {
-                     reportCardTotalGPA += course.gpa;
-                     reportCardTotalCount++;
-                 });
-            });
-            const reportCardOverallGPA = reportCardTotalCount > 0 ? (reportCardTotalGPA / reportCardTotalCount) : 0;
-            
-            renderReportCardInternal(pastCyclesDetail, reportCardOverallGPA);
+            renderReportCardInternal(pastCyclesDetailForReport, reportCardOverallGPA);
 
-            // Update UI
             const navGPA = document.getElementById('navCurrentGPA');
             if (navGPA) navGPA.textContent = gpaValue;
             
@@ -1435,65 +1531,70 @@
             const cumulativeValue = document.getElementById('cumulativeGPAValue');
             if (cumulativeValue) cumulativeValue.textContent = gpaValue;
 
-            // Update Past Cycles UI if we are in the full calculation view
+            // Updated List UI with Expandable Details
             const pastCyclesDiv = document.getElementById('pastCyclesDisplay');
             if (pastCyclesDiv && pastCyclesDiv.textContent !== 'Run calculation to fetch transcript...') {
-                 if (reportCardData) {
-                    if (pastCyclesCount > 0) {
-                        let cycleInfo = `<div style="background: #f0fdf4; padding: 16px; border-radius: 8px; border: 1px solid #bbf7d0; margin-bottom: 16px;">`;
-                        cycleInfo += `<strong style="color: #166534;">✓ Retrieved ${pastCyclesCount} past cycles from local data</strong>`;
-                        cycleInfo += `</div>`;
-
-                        cycleInfo += `<div style="display: grid; gap: 16px;">`;
-                        pastCyclesDetail.forEach(cycle => {
-                            cycleInfo += `<div style="background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid var(--border);">`;
-                            cycleInfo += `<div style="display: flex; justify-content: space-between; margin-bottom: 12px;">`;
-                            cycleInfo += `<span style="font-weight: 600; color: var(--text-main);">${cycle.cycle_name}</span>`;
-                            cycleInfo += `<span style="font-weight: 700; color: var(--accent);">GPA ${cycle.average_gpa.toFixed(2)}</span>`;
-                            cycleInfo += `</div>`;
-                            
-                            cycle.courses.forEach(course => {
-                                cycleInfo += `<div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; color: var(--text-muted);">`;
-                                cycleInfo += `<span>${course.course_name}</span>`;
-                                cycleInfo += `<span>${course.grade} (${course.gpa.toFixed(2)})</span>`;
-                                cycleInfo += `</div>`;
-                            });
-                            cycleInfo += `</div>`;
-                        });
-                        cycleInfo += `</div>`;
-                        pastCyclesDiv.innerHTML = cycleInfo;
-                    } else {
-                        pastCyclesDiv.innerHTML = 'No past cycles found in loaded data.';
-                    }
-                    
-                    // Update exclusions list
-                    const exclusionSection = document.getElementById('courseExclusionSection');
-                    const excludedList = document.getElementById('excludedCoursesList');
-                    if (allUniqueCourses.size > 0) {
-                        exclusionSection.classList.remove('hidden');
-                        let exclusionHTML = '';
-                        Array.from(allUniqueCourses).sort().forEach(courseName => {
-                            const isExcluded = excludedCourseNames.includes(courseName);
-                            exclusionHTML += `
-                                <div class="course-checkbox">
-                                    <input type="checkbox" id="exclude-${courseName.replace(/\s+/g, '-')}"
-                                           value="${courseName}"
-                                           ${isExcluded ? 'checked' : ''}
-                                           onchange="toggleCourseExclusion('${courseName.replace(/'/g, "\\'")}', this.checked)">
-                                    <label for="exclude-${courseName.replace(/\s+/g, '-')}" style="cursor: pointer; flex: 1; font-size: 14px;">
-                                        ${courseName}
-                                    </label>
-                                </div>
+                 if (allCyclesForReportList.length > 0) {
+                     let cycleInfo = `<div style="display: grid; gap: 12px;">`;
+                     allCyclesForReportList.forEach(cycle => {
+                        cycleInfo += `
+                        <details style="background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); overflow: hidden;">
+                            <summary style="padding: 12px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
+                                <span style="font-weight: 600; color: var(--text-main);">${cycle.cycle_name}</span>
+                                <span style="font-weight: 700; color: var(--accent);">GPA ${cycle.display_gpa.toFixed(2)}</span>
+                            </summary>
+                            <div style="padding: 0 12px 12px 12px; border-top: 1px solid var(--border-light);">
+                                <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.9em;">
+                        `;
+                        cycle.display_courses.forEach(c => {
+                            const opacity = c.is_excluded ? '0.5' : '1';
+                            const strike = c.is_excluded ? 'text-decoration: line-through;' : '';
+                            cycleInfo += `
+                                <li style="padding: 6px 0; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; opacity: ${opacity}; ${strike}">
+                                    <span style="flex: 1; margin-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.course_name}</span>
+                                    <span style="font-weight: 600;">${c.gpa !== null ? c.gpa : '-'}</span>
+                                </li>
                             `;
                         });
+                        cycleInfo += `</ul></div></details>`;
+                     });
+                     cycleInfo += `</div>`;
+                     pastCyclesDiv.innerHTML = cycleInfo;
+                 } else {
+                     pastCyclesDiv.innerHTML = 'No cycles found.';
+                 }
+                    
+                 // Update exclusions list
+                 const exclusionSection = document.getElementById('courseExclusionSection');
+                 const excludedList = document.getElementById('excludedCoursesList');
+                 if (allUniqueCourses.size > 0) {
+                    exclusionSection.classList.remove('hidden');
+                    let exclusionHTML = '';
+                    Array.from(allUniqueCourses).sort().forEach(courseName => {
+                        const isExcluded = excludedCourseNames.includes(courseName);
+                        // Make safe ID
+                        const safeId = courseName.replace(/[^a-zA-Z0-9]/g, '-');
+                        exclusionHTML += `
+                            <div class="course-checkbox">
+                                <input type="checkbox" id="exclude-${safeId}"
+                                       value="${courseName.replace(/"/g, '&quot;')}"
+                                       ${isExcluded ? 'checked' : ''}
+                                       onchange="toggleCourseExclusion('${courseName.replace(/'/g, "\\'")}', this.checked)">
+                                <label for="exclude-${safeId}" style="cursor: pointer; flex: 1; font-size: 14px;">
+                                    ${courseName}
+                                </label>
+                            </div>
+                        `;
+                    });
+                    if (excludedList.innerHTML === '' || excludedList.children.length !== allUniqueCourses.size) {
                         excludedList.innerHTML = exclusionHTML;
                     }
+                 }
 
                  } else {
                      pastCyclesDiv.innerHTML = 'Transcript data is loading...';
                  }
             }
-        }
 
         async function calculateCumulativeGPA() {
             // Just trigger the local calculation and show the UI

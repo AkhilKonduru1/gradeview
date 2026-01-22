@@ -667,5 +667,63 @@ def report_card():
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/refresh_all_cycles', methods=['POST'])
+def refresh_all_cycles():
+    session_id = request.headers.get('X-Session-ID')
+    
+    # 1. Validate Existing Session or Restore
+    if not validate_session(session_id):
+        # Allow client to send credentials to re-login explicitly if session is dead
+        data = request.json or {}
+        if data.get('username') and data.get('password'):
+            sess, error = create_session_and_login(data['username'], data['password'])
+            if error:
+                 return jsonify({'error': error}), 401
+            # Create new session
+            session_id = secrets.token_hex(16)
+            user_sessions[session_id] = sess
+            user_credentials[session_id] = {'username': data['username'], 'password': data['password']}
+            session_timestamps[session_id] = datetime.now()
+        else:
+            return jsonify({'error': 'Session expired. Please log in again.'}), 401
+    
+    sess = user_sessions[session_id]
+    
+    try:
+        # Start fresh with current cycle to get the list
+        grades_data, available_cycles, current_cycle = get_grades_data(sess, session_id=session_id)
+        
+        all_cycles_data = {}
+        all_cycles_data[current_cycle] = {
+            'grades': grades_data,
+            'current_cycle': current_cycle,
+            'cycles': available_cycles
+        }
+        
+        # Iterate through other cycles
+        # We use the same session, so we must be sequential to maintain ViewState integrity usually.
+        # However, get_grades_data manages state. 
+        for cycle_opt in available_cycles:
+            cycle_val = cycle_opt['value']
+            if cycle_val != current_cycle:
+                print(f"Refreshing Cycle: {cycle_val}")
+                g_data, _, _ = get_grades_data(sess, cycle=cycle_val, session_id=session_id)
+                all_cycles_data[cycle_val] = {
+                    'grades': g_data,
+                    'current_cycle': cycle_val,
+                    'cycles': available_cycles
+                }
+        
+        return jsonify({
+            'message': 'All cycles refreshed',
+            'session_id': session_id,  # Return new ID if created
+            'data': all_cycles_data
+        })
+        
+    except Exception as e:
+        print(f"Refresh error: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(port=5003, debug=True)
